@@ -21,7 +21,6 @@ Regulation chauffage eau plancher chauffant
 		Regulation par PID et pilotage de 4 résistances de 1.6 kW
 	* Commande circulateur
 ----------------------------------------------------------------------------------------------- '''
-# Commande creation fichier python depuis Qt4  : $ pyuic4 -o nomfichier.py -x nomfichier.ui
 
 from machine import UART,Pin,  RTC,  Timer
 import time, _thread,  onewire,   json, machine,  sys
