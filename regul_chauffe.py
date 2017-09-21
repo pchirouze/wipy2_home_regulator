@@ -589,7 +589,7 @@ while True:
 #--------- Pour simulation liaison compteur Edf (jumper RX-TX loop)
 	if SIMU ==1:  ser.write(trame_edf)
 #--------------------------------------------------------------
-#    time.sleep(0.6)
+	time.sleep(1.0)
 	machine.idle()
 # Calcul temps de cycle (ms)
 	t_cycle=time.ticks_diff(start_t, time.ticks_ms())
