@@ -1,5 +1,5 @@
 """
-OneWire library for MicroPython
+-- OneWire library for MicroPython --
 """
 
 import time
