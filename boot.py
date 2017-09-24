@@ -8,5 +8,5 @@ uart = UART(0, 115200)
 os.dupterm(uart)
 
 #execfile('solar_controller.py')
-execfile('regul_chauffe.py')
-#execfile('EssaiNewOnewire.py')
+#execfile('regul_chauffe.py')
+
