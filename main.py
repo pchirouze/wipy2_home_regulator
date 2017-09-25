@@ -598,6 +598,6 @@ while True:
 # Calcul temps de cycle (ms)
 	t_cycle=time.ticks_diff(start_t, time.ticks_ms())
 	if DEBUG : print ('Temps de cycle : ', t_cycle,  ' ms')
-	pycom.heartbeat(0x0)
+#	pycom.heartbeat(0x0)
 # Pour relance nouvelle instance Timer watchdog
 	watchdog.__del__()
