@@ -471,7 +471,7 @@ data_reel={}
 pycom.heartbeat(False)
 while True:
 	start_t=time.ticks_ms()
-	pycom.heartbeat(0x080000)
+	pycom.rgbled(0x080000)
 # Init Timer pour watchdog
 	watchdog=Timer.Alarm(wdt_callback, 20, periodic=False)
 #Lecture thermometres OneWire
@@ -480,7 +480,7 @@ while True:
 		all_th=True
 #    for i in range(len(dev)):
 	tmp =  ds.read_temp(dev[i])
-	pycom.heartbeat(0x000000)
+	pycom.rgbled(0x000000)
 	tx=THERMOMETRES[int.from_bytes(dev[i][2:4])]
 	temp[tx]=tmp/100
 	i+=1
