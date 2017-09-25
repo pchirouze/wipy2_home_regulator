@@ -471,6 +471,7 @@ data_reel={}
 pycom.heartbeat(False)
 while True:
 	start_t=time.ticks_ms()
+	pycom.heartbeat(0x080000)
 # Init Timer pour watchdog
 	watchdog=Timer.Alarm(wdt_callback, 20, periodic=False)
 #Lecture thermometres OneWire
@@ -479,6 +480,7 @@ while True:
 		all_th=True
 #    for i in range(len(dev)):
 	tmp =  ds.read_temp(dev[i])
+	pycom.heartbeat(0x000000)
 	tx=THERMOMETRES[int.from_bytes(dev[i][2:4])]
 	temp[tx]=tmp/100
 	i+=1
@@ -533,7 +535,6 @@ while True:
 					time.timezone(3600)
 					wifi=True
 					mqtt_ok=False
-
 		else:
 # Creation et initialisation protocole MQTT 
 			if mqtt_ok is False:
@@ -597,5 +598,6 @@ while True:
 # Calcul temps de cycle (ms)
 	t_cycle=time.ticks_diff(start_t, time.ticks_ms())
 	if DEBUG : print ('Temps de cycle : ', t_cycle,  ' ms')
+	pycom.heartbeat(0x0)
 # Pour relance nouvelle instance Timer watchdog
 	watchdog.__del__()
