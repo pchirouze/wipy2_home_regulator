@@ -60,7 +60,7 @@ confidence=
 # no Warning level messages displayed, use"--disable=all --enable=classes
 # --disable=W"
 disable=import-star-module-level,old-octal-literal,oct-method,print-statement,unpacking-in-except,parameter-unpacking,backtick,old-raise-syntax,old-ne-operator,long-suffix,dict-view-method,dict-iter-method,metaclass-assignment,next-method-called,raising-string,indexing-exception,raw_input-builtin,long-builtin,file-builtin,execfile-builtin,coerce-builtin,cmp-builtin,buffer-builtin,basestring-builtin,apply-builtin,filter-builtin-not-iterating,using-cmp-argument,useless-suppression,range-builtin-not-iterating,suppressed-message,no-absolute-import,old-division,cmp-method,reload-builtin,zip-builtin-not-iterating,intern-builtin,unichr-builtin,reduce-builtin,standarderror-builtin,unicode-builtin,xrange-builtin,coerce-method,delslice-method,getslice-method,setslice-method,input-builtin,round-builtin,hex-method,nonzero-method,map-builtin-not-iterating
-disable=C0303,C0326, C0325, C0103, W0312, C1001,C0321, C0603, W0702, R0915, R0912, W0603
+disable=C0303,C0326, C0325, C0103, W0312, C1001,C0321, C0603, W0702
 
 [REPORTS]
 
@@ -204,7 +204,7 @@ inlinevar-name-hint=[A-Za-z_][A-Za-z0-9_]*$
 class-rgx=[A-Z_][a-zA-Z0-9]+$
 
 # Naming hint for class names
-class-name-hint=[A-Z_][a-zA-Z0-9]+$ 
+class-name-hint=[A-Z_][a-zA-Z0-9]+$
 
 # Regular expression matching correct module names
 module-rgx=(([a-z_][a-z0-9_]*)|([A-Z][a-zA-Z0-9]+))$
@@ -226,7 +226,7 @@ no-docstring-rgx=^_
 # ones are exempt.
 docstring-min-length=-1
 
- 
+
 [ELIF]
 
 # Maximum number of nested blocks for function / method body
