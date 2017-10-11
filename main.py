@@ -22,18 +22,23 @@ Regulation chauffage eau plancher chauffant
 	* Commande circulateur
 ----------------------------------------------------------------------------------------------- '''
 
-from machine import UART,Pin,  RTC,  Timer
-import time, _thread,  onewire,   json, machine,  sys
-from network import  WLAN
-from umqtt import   MQTTClient
-from PID import PID
+import json
+import sys
+import time
+
+import _thread
+import machine
+import onewire
 import pycom
+from machine import RTC, UART, Pin, Timer
+from network import WLAN
+from PID import PID
+from umqtt import MQTTClient
 
-
-#--------------------------- DEBUG -----------------------------------
+#--------------------------- DEBUG ---------------------------
 DEBUG = True
 #DEBUG = False
-#------------------ Emulation compteur EDF --------------------
+#------------------ Emulation compteur EDF -------------------
 SIMU=const(1)
 #SIMU=const(0) 
 # Trame d'emission simulation connexion compteur (téléinfo edf)
@@ -45,7 +50,7 @@ trame_edf = STX + \
 	b'\nISOUSC 45 $\r' + \
 	b'\nHCHC 12345678 $\r' + \
 	b'\nHCHP 12345678 $\r' + \
-	b'\nPTEC HC.. $\r' + \
+	b'\nPTEC HP.. $\r' + \
 	b'\nIINST 012 $\r' + \
 	b'\nADPS 123 $\r' + \
 	b'\nIMAX 123 $\r' + \
@@ -97,9 +102,11 @@ PWID='parapente'
 MQTT_server="iot.eclipse.org"
 
 # Thread reception téléinformation compteur EDF
+
 def edf_recv(serial):
+	''' Docstring de la fonction '''
 	global dic_edf, new_lec
-	encours=False
+	encours = False
 	while True:
 		while serial.any() > 0:
 			car=serial.read(1)
@@ -123,7 +130,7 @@ def edf_recv(serial):
 				dic_edf=dic.copy()
 				new_lec=True
 				lock.release()
-#                time.sleep(0.2)
+# time.sleep(0.2)
 				machine.idle()
 
 #
@@ -144,7 +151,6 @@ def calc_cons_eau(SetP_amb, T_amb, T_ext, params):
 			cons+= v * params[i+1][1]
 			break
 	return cons
-
 #
 # Controle  circulateur et regulation
 #
@@ -161,7 +167,7 @@ def cnt_circulateur(cons_amb,  t_amb, pin_cde, marche):
 #
 class regul_vanne():
 	''' Agit par 2 commandes impulsion + et - sur l'ouverture et fermeture vanne,
-puis attent un temps mort avant de reagir a nouveau  '''
+	puis attent un temps mort avant de reagir a nouveau  '''
 
 	def __init__(self, pin_p,  pin_m,   params):
 		self.pin_p=pin_p
@@ -174,7 +180,7 @@ puis attent un temps mort avant de reagir a nouveau  '''
 		self.t_wait = params[3] * 1000
 		self.t_move = params[4] * 1000
 		self.etape = 0
-		self.position = 0
+		self.position = 0.0
 		self.tempo = 0
 
 	def run(self,  t_cons_eau, t_cuve,  t_sortie_vanne,  t_cycl,  circulateur):
@@ -210,7 +216,7 @@ puis attent un temps mort avant de reagir a nouveau  '''
 						if self.position > 0:
 							self.position -= (self.t_pulse / self.t_move ) * 100
 						else:
-							self.position = 0
+							self.position = 0.0
 						self.etape = 2
 				else:
 					self.tempo = self.t_move
@@ -289,6 +295,7 @@ class  ges_elec():
 		self.nbr = 0
 		self.kw_hc = 0
 		self.kw_hp = 0
+		self.puissance = 0.0
 
 	def run(self, out_reg, data_edf, t_cycl,  params):
 		self.output_reg = out_reg
@@ -336,7 +343,7 @@ class  ges_elec():
 
 	def get_power(self):
 		return self.puissance
-
+	
 	def get_energie(self):
 		return self.kw_hc,  self.kw_hp
 
@@ -369,7 +376,7 @@ def incoming_mess(topic, msg):
 			param_fonct[0] = float(msg.decode())
 			f=open('p_fonct.dat', 'w')
 			f.write(json.dumps(param_fonct))
-			f.close
+			f.close()
 			return
 
 def lecture_fichiers():
@@ -484,7 +491,6 @@ while True:
 	tx=THERMOMETRES[int.from_bytes(dev[i][2:4])]
 	temp[tx]=tmp/100
 	i+=1
-
 	if all_th :
 		if DEBUG :    print('Temperatures : ',  temp)
 # Recupere données compteur EDF
@@ -520,6 +526,7 @@ while True:
 #Gestion protocole Telnet, FTP, MQTT en WiFI   print (wifi, mqtt_ok)
 		if wifi == False:
 			wlan=WLAN(mode=WLAN.STA)
+
 			lswifi=wlan.scan()
 			if lswifi==None: lswifi=[] # Bug scan pass
 			for r in lswifi:
@@ -551,7 +558,7 @@ while True:
 					mqtt_ok = True
 				except:
 					print('MQTT connexion erreur')
-####                    client.disconnect()
+####                    client.disconnect() 
 					mqtt_ok=False
 #####                    machine.reset()
 			else:
@@ -574,7 +581,7 @@ while True:
 							data_reel['CIRC'] = etat_circ
 							data_reel['VANN'] = position
 							data_reel['CHAU'] = reg_c.get_outputReg()
-							data_reel['ELEC'] = {'PW': c_elec.get_power(), 'CHC' : c_elec.get_energie()[0] / 1000,  'CHP' : c_elec.get_energie()[ 1] / 1000}
+							data_reel['ELEC'] = {'PW': c_elec.get_power(), 'CHC' : c_elec.get_energie()[0] / 1000, 'CHP' : c_elec.get_energie()[ 1] / 1000}
 							data_reel['FNCT'] = param_fonct
 							client.publish('/regchauf/mesur',json.dumps(data_reel))
 							if DEBUG : print('Publication mesures : ',  data_reel)
@@ -593,11 +600,11 @@ while True:
 #--------- Pour simulation liaison compteur Edf (jumper RX-TX loop)
 	if SIMU ==1:  ser.write(trame_edf)
 #--------------------------------------------------------------
-#	time.sleep(0.6)
+	time.sleep(0.8)
 	machine.idle()
 # Calcul temps de cycle (ms)
 	t_cycle=time.ticks_diff(start_t, time.ticks_ms())
 	if DEBUG : print ('Temps de cycle : ', t_cycle,  ' ms')
-#	pycom.heartbeat(0x0)
+
 # Pour relance nouvelle instance Timer watchdog
 	watchdog.__del__()
