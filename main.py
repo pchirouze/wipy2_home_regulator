@@ -450,7 +450,7 @@ def lecture_fichiers():
 #  Gestion watchdog par callback timer
 def wdt_callback(alarm):
     ''' Docstring here '''
-    import machine
+    # import machine
     print("\n\nReset par WatchDog\n\n")
     time.sleep(0.5)
     machine.reset()
@@ -546,10 +546,12 @@ while True:
 
 #Gestion protocole Telnet, FTP, MQTT en WiFI   print (wifi, mqtt_ok)
         if wifi is False:
+            lswifi=[]
             wlan=WLAN(mode=WLAN.STA)
-            lswifi=wlan.scan()
-            if lswifi is None:
-    				lswifi=[] # Bug scan pass
+            try:
+                lswifi=wlan.scan()
+            except:
+                print('Pas de connexion Wifi')
             for r in lswifi:
 # freebox et signal > -80 dB
                 if r[0] == SSID and r[4] > -80 :
@@ -565,6 +567,7 @@ while True:
                     mqtt_ok=False
         else:
 # Creation et initialisation protocole MQTT 
+            if not wlan.isconnected(): wifi=False
             if mqtt_ok is False:
                 print('Connecte WIFI : ',  wlan.ifconfig())
                 client =MQTTClient("pchirouze",MQTT_server, port = 1883, keepalive=100)
@@ -590,7 +593,7 @@ while True:
                     client.disconnect()
                     print('MQTT check message entrant erreur')
                     machine.reset()
-                if mes_send==True:
+                if mes_send is True:
                     try:
                         cpt_send += t_cycle
                         if cpt_send > 3500 :
