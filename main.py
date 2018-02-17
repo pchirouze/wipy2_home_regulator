@@ -36,16 +36,18 @@ from PID import PID
 from umqtt import MQTTClient
 
 #-------------------------- DEBUG ---------------------------
-#DEBUG = True
-DEBUG = False
+DEBUG = True
+#DEBUG = False
 #------------------ Emulation compteur EDF ------------------
-SIMU = const(1)
-#SIMU=const(0) 
+#SIMU = const(1)
+SIMU=const(0) 
 # Trame d'emission simulation connexion compteur (téléinfo edf)
 STX = b'\x02'
 ETX = b'\x03'
 ON = 1  # Pour activer sorties logiques
 OFF = 0
+NBTHERMO = 5 # Nombre de thermometres OneWire
+
 trame_edf = STX + \
     b'\nADCO 123456789012 $\r' + \
     b'\nOPTARIF HC.. $\r' + \
@@ -64,7 +66,7 @@ trame_edf = STX + \
 # ------------------ Constantes ------------------------------------
 #
 # Identifiant interne capteur a changé si changement de capteur(en decimal 5 derniers digits)
-THERMOMETRES = {27702:'T1', 28196:'T2', 29859:'T3', 27423:'T4', 23570:'T5'}
+# THERMOMETRES = {27702:'T1', 28196:'T2', 29859:'T3', 27423:'T4', 23570:'T5'}
 
 #----------- Parametres par defaut pour creation fichiers ----------------------------
 # T eau fonction de T ext, Consigne ambiante et ecart consigne ambiante - T ambianteregul_chauffe.py
@@ -391,7 +393,7 @@ def incoming_mess(topic, msg):
 
 def lecture_fichiers():
     ''' Lecture fichiers configurations '''
-    global param_fonct,  param_cons,  param_vanne,  param_chaudiere,  param_electrique
+    global param_fonct,  param_cons,  param_vanne,  param_chaudiere,  param_electrique, thermometres
     try:
         f=open('p_cons.dat', 'r')
         param_cons=json.loads(f.read())
@@ -446,6 +448,27 @@ def lecture_fichiers():
         f=open('p_fonct.dat', 'w')
         f.write(json.dumps(param_fonct))
         f.close()
+    
+    # Lecture fichiers affections thermometres
+    try:
+        f=open('thermo.dat', 'r')
+        data=f.read()
+        thermometres = json.loads(data)
+    except:
+        print('Erreur lecture fichier thermometres')
+        thermometres = {}
+        dev = ds.roms
+        if len(dev) == NBTHERMO:
+    # Affectation des thermometres et enregistrement (converti ID en int: bug bytearray en json)
+            for i in range(len(dev)):
+                thermometres['T'+ chr(0x31+i)] = int.from_bytes(dev[i],'little') 
+            f=open('thermo.dat','w')
+            f.write(json.dumps(thermometres))
+        else:
+            print('Seulement ', len(dev), 'thermometres detectés sur ', NBTHERMO )
+            machine.reset()
+    finally:
+        f.close()
 
 #  Gestion watchdog par callback timer
 def wdt_callback(alarm):
@@ -488,147 +511,146 @@ data_reel={}
 #---------------------------------- Main loop --------------------------------------------
 #
 pycom.heartbeat(False)
+all_t_read = 0
 while True:
-    start_t = time.ticks_ms()
+#    start_t = time.ticks_ms()
     pycom.rgbled(0x080000)
 # Init Timer pour watchdog
     watchdog=Timer.Alarm(wdt_callback, 20, periodic=False)
-#Lecture thermometres OneWire (5 capteurs)
-    if len(dev)==len(THERMOMETRES):
-        if i==len(dev) :
-            i=0
-            all_th=True
-    #    for i in range(len(dev)):
-        tmp =  ds.read_temp(dev[i])
-        pycom.rgbled(0x000000)
-        tx = THERMOMETRES[int.from_bytes(dev[i][2:4],'little')]
-        temp[tx]=tmp/100
-        i+=1
-    else :
-        temp['T1']=0
-        temp['T2']=0 
-        temp['T3']=0
-        temp['T4']=0
-        temp['T5']=0    
-        all_th=True        
-        print('Defaut lecture thermometres')
-    if all_th :
-        if DEBUG :    print('Temperatures : ',  temp)
-# Recupere données compteur EDF
-        lock.acquire()
-        if new_lec:
-            data_cpt=dic_edf.copy()
+#Lecture thermometres OneWire (Raffraichi un thermometre par boucle)
+    for key in thermometres:
+        start_t = time.ticks_ms()
+        idt= thermometres[key].to_bytes(8,'little')
+        t_lue = ds.read_temp_async(idt)/100.0
+        if t_lue >=4095 : # ds18 debranché valeur = 4095.xx
+            print('Defaut capteur ',key )
+            temp[key]=0.0
         else:
-            print('Defaut lecture teleinfo EDF')
-        new_lec=False
-        lock.release()
-        if DEBUG :        print('Compteur EDF : ',  data_cpt)
-# Calcul consigne  temp eau chauffage
-        cons_eau= calc_cons_eau(param_fonct[0], temp['T1'],  temp['T2'], param_cons )
-        if DEBUG :  print('Temp. consigne eau : ',  cons_eau)
-# Controle circulateur
-        etat_circ = cnt_circulateur(param_fonct[0],  temp['T2'], s_circul, param_fonct[1] )
-        if DEBUG : print('Cde circulateur : ', etat_circ)
-# Regulation vanne 3 voie sur circuit solaire
-        reg_v.run(cons_eau,  temp['T3'],  temp['T4'],  t_cycle,  etat_circ)
-        position=reg_v.get_pos_vanne()
-        if DEBUG : print('Ouverture vanne : ',  position,  ' %')
-# Regulation chaudiere
-        reg_c.run(cons_eau, temp['T5'], etat_circ,  param_chaudiere)
-        if DEBUG : print('Sortie PID chaudiere : ',  reg_c.get_outputReg())
-# Gestion electrique  (delestage)
-        erreur = c_elec.run(reg_c.get_outputReg(),  data_cpt, t_cycle,   param_electrique)
-# Puissance chauffage(W),  energie cumulé en HC et HP (kWh)
-        if DEBUG :
-            print('Puissance chauffe : ', c_elec.get_power(), ' W')
-            print('Energie heures creuses : ',  c_elec.get_energie() [0] / 1000,  ' kWh')
-            print('Energie heures pleines : ', c_elec.get_energie() [1] / 1000.0,  'kWh')
+            temp[key] = t_lue
+        ds.start_convertion(idt)
+        if all_t_read == NBTHERMO:
+            all_th = True
+        else:
+            all_t_read += 1
+            time.sleep(0.7)
 
-#Gestion protocole Telnet, FTP, MQTT en WiFI   print (wifi, mqtt_ok)
-        if wifi is False:
-            lswifi=[]
-            wlan=WLAN(mode=WLAN.STA)
-            try:
-                lswifi=wlan.scan()
-            except:
-                print('Pas de connexion Wifi')
-            for r in lswifi:
-# freebox et signal > -80 dB
-                if r[0] == SSID and r[4] > -80 :
-                    if not wlan.isconnected():
-#                        wlan.ifconfig(config=('192.168.0.30', '255.255.255.0', '192.168.0.254', '212.27.40.240'))
-                        wlan.ifconfig(config='dhcp')
-                        wlan.connect(SSID, auth=(WLAN.WPA2, PWID), timeout=50)
-                        time.sleep(2)
-                    rtc=RTC()
-                    rtc.ntp_sync("pool.ntp.org")
-                    time.timezone(3600)
-                    wifi=True
-                    mqtt_ok=False
-        else:
-# Creation et initialisation protocole MQTT 
-            if not wlan.isconnected(): wifi=False
-            if mqtt_ok is False:
-                print('Connecte WIFI : ',  wlan.ifconfig())
-                client =MQTTClient("pchirouze",MQTT_server, port = 1883, keepalive=100)
-                try:
-                    client.connect(clean_session=True)
-#                    print ('Connection MQTT')
-                    client.set_callback(incoming_mess)
-                    client.subscribe('/regchauf/cde', qos= 0)
-                    client.subscribe('/regchauf/send', qos= 0)
-                    client.subscribe('/regchauf/cons', qos= 0)
-                    print('Connecte au serveur MQTT : ',  MQTT_server)
-                    mqtt_ok = True
-                except:
-                    print('MQTT connexion erreur')
-####                    client.disconnect() 
-                    mqtt_ok=False
-#####                    machine.reset()
+        if all_th :
+            if DEBUG :    print('Temperatures : ',  temp)
+    # Recupere données compteur EDF
+            lock.acquire()
+            if new_lec:
+                data_cpt=dic_edf.copy()
             else:
+                print('Defaut lecture teleinfo EDF')
+            new_lec=False
+            lock.release()
+            if DEBUG :        print('Compteur EDF : ',  data_cpt)
+    # Calcul consigne  temp eau chauffage
+            cons_eau= calc_cons_eau(param_fonct[0], temp['T1'],  temp['T2'], param_cons )
+            if DEBUG :  print('Temp. consigne eau : ',  cons_eau)
+    # Controle circulateur
+            etat_circ = cnt_circulateur(param_fonct[0],  temp['T2'], s_circul, param_fonct[1] )
+            if DEBUG : print('Cde circulateur : ', etat_circ)
+    # Regulation vanne 3 voie sur circuit solaire
+            reg_v.run(cons_eau,  temp['T3'],  temp['T4'],  t_cycle,  etat_circ)
+            position=reg_v.get_pos_vanne()
+            if DEBUG : print('Ouverture vanne : ',  position,  ' %')
+    # Regulation chaudiere
+            reg_c.run(cons_eau, temp['T5'], etat_circ,  param_chaudiere)
+            if DEBUG : print('Sortie PID chaudiere : ',  reg_c.get_outputReg())
+    # Gestion electrique  (delestage)
+            erreur = c_elec.run(reg_c.get_outputReg(),  data_cpt, t_cycle,   param_electrique)
+    # Puissance chauffage(W),  energie cumulé en HC et HP (kWh)
+            if DEBUG :
+                print('Puissance chauffe : ', c_elec.get_power(), ' W')
+                print('Energie heures creuses : ',  c_elec.get_energie() [0] / 1000,  ' kWh')
+                print('Energie heures pleines : ', c_elec.get_energie() [1] / 1000.0,  'kWh')
+
+    #Gestion protocole Telnet, FTP, MQTT en WiFI   print (wifi, mqtt_ok)
+            if wifi is False:
+                lswifi=[]
+                wlan=WLAN(mode=WLAN.STA)
                 try:
-                    client.check_msg()
+                    lswifi=wlan.scan()
                 except:
-                    mqtt_ok=False
-                    client.disconnect()
-                    print('MQTT check message entrant erreur')
-                    machine.reset()
-                if mes_send is True:
+                    print('Pas de connexion Wifi')
+                for r in lswifi:
+    # freebox et signal > -80 dB
+                    if r[0] == SSID and r[4] > -80 :
+                        if not wlan.isconnected():
+    #                        wlan.ifconfig(config=('192.168.0.30', '255.255.255.0', '192.168.0.254', '212.27.40.240'))
+                            wlan.ifconfig(config='dhcp')
+                            wlan.connect(SSID, auth=(WLAN.WPA2, PWID), timeout=50)
+                            time.sleep(2)
+                        rtc=RTC()
+                        rtc.ntp_sync("pool.ntp.org")
+                        time.timezone(3600)
+                        wifi=True
+                        mqtt_ok=False
+            else:
+    # Creation et initialisation protocole MQTT 
+                if not wlan.isconnected(): wifi=False
+                if mqtt_ok is False:
+                    print('Connecte WIFI : ',  wlan.ifconfig())
+                    client =MQTTClient("pchirouze",MQTT_server, port = 1883, keepalive=100)
                     try:
-                        cpt_send += t_cycle
-                        if cpt_send > 3500 :
-                            cpt_send=0
-# Genere dictionnaire des données temps reel
-                            data_reel['TEMP'] = temp
-                            data_reel['EDF']= data_cpt
-                            data_reel['CONS'] = cons_eau
-                            data_reel['CIRC'] = etat_circ
-                            data_reel['VANN'] = position
-                            data_reel['CHAU'] = reg_c.get_outputReg()
-                            data_reel['ELEC'] = {'PW': c_elec.get_power(), 'CHC' : c_elec.get_energie()[0] / 1000, 'CHP' : c_elec.get_energie()[ 1] / 1000}
-                            data_reel['FNCT'] = param_fonct
-                            client.publish('/regchauf/mesur',json.dumps(data_reel))
-                            if DEBUG : print('Publication mesures : ',  data_reel)
+                        client.connect(clean_session=True)
+    #                    print ('Connection MQTT')
+                        client.set_callback(incoming_mess)
+                        client.subscribe('/regchauf/cde', qos= 0)
+                        client.subscribe('/regchauf/send', qos= 0)
+                        client.subscribe('/regchauf/cons', qos= 0)
+                        print('Connecte au serveur MQTT : ',  MQTT_server)
+                        mqtt_ok = True
+                    except:
+                        print('MQTT connexion erreur')
+    ####                    client.disconnect() 
+                        mqtt_ok=False
+    #####                    machine.reset()
+                else:
+                    try:
+                        client.check_msg()
                     except:
                         mqtt_ok=False
                         client.disconnect()
-                        print('MQTT publication erreur')
+                        print('MQTT check message entrant erreur')
                         machine.reset()
-                else:
-                    cpt_send += t_cycle
-                    if cpt_send > 10000 :
-#                        print('PING')
-                        cpt_send=0
-                        client.ping()       # Keep alive command
+                    if mes_send is True:
+                        try:
+                            cpt_send += t_cycle
+                            if cpt_send > 3500 :
+                                cpt_send=0
+    # Genere dictionnaire des données temps reel
+                                data_reel['TEMP'] = temp
+                                data_reel['EDF']= data_cpt
+                                data_reel['CONS'] = cons_eau
+                                data_reel['CIRC'] = etat_circ
+                                data_reel['VANN'] = position
+                                data_reel['CHAU'] = reg_c.get_outputReg()
+                                data_reel['ELEC'] = {'PW': c_elec.get_power(), 'CHC' : c_elec.get_energie()[0] / 1000, 'CHP' : c_elec.get_energie()[ 1] / 1000}
+                                data_reel['FNCT'] = param_fonct
+                                client.publish('/regchauf/mesur',json.dumps(data_reel))
+                                if DEBUG : print('Publication mesures : ',  data_reel)
+                        except:
+                            mqtt_ok=False
+                            client.disconnect()
+                            print('MQTT publication erreur')
+                            machine.reset()
+                    else:
+                        cpt_send += t_cycle
+                        if cpt_send > 10000 :
+    #                        print('PING')
+                            cpt_send=0
+                            client.ping()       # Keep alive command
 
 #--------- Pour simulation liaison compteur Edf (jumper RX-TX loop)
-    if SIMU ==1:  ser.write(trame_edf)
+        if SIMU ==1:  ser.write(trame_edf)
 #--------------------------------------------------------------
-    time.sleep(0.8)
-    machine.idle()
+        time.sleep(0.7)
+        machine.idle()
 # Calcul temps de cycle (ms)
-    t_cycle=time.ticks_diff(start_t, time.ticks_ms())
-    if DEBUG : print ('Temps de cycle : ', t_cycle,  ' ms')
+        t_cycle=time.ticks_diff(start_t, time.ticks_ms())
+        if DEBUG : print ('Temps de cycle : ', t_cycle,  ' ms')
 
 # Pour relance nouvelle instance Timer watchdog
-    watchdog.__del__()
+        watchdog.__del__()

@@ -1,12 +1,13 @@
+#!/usr/bin/env python3
+
 """
--- OneWire library for MicroPython --
+OneWire library for MicroPython
 """
 
 import time
 import machine
 
-
-class OneWire():
+class OneWire:
     CMD_SEARCHROM = const(0xf0)
     CMD_READROM = const(0x33)
     CMD_MATCHROM = const(0x55)
@@ -88,7 +89,7 @@ class OneWire():
 
     def select_rom(self, rom):
         """
-        Select a specific device to talk to.  Pass in rom as a bytearray (8 bytes).
+        Select a specific device to talk to. Pass in rom as a bytearray (8 bytes).
         """
         self.reset()
         self.write_byte(CMD_MATCHROM)
@@ -160,9 +161,16 @@ class DS18X20(object):
         self.ow = onewire
         self.roms = [rom for rom in self.ow.scan() if rom[0] == 0x10 or rom[0] == 0x28]
 
-    def read_temp(self, rom=None):
+    def isbusy(self):
         """
-        Read and return the temperature of one DS18x20 device.
+        Checks wether one of the DS18x20 devices on the bus is busy
+        performing a temperature convertion
+        """
+        return not self.ow.read_bit()
+
+    def start_convertion(self, rom=None):
+        """
+        Start the temp conversion on one DS18x20 device.
         Pass the 8-byte bytes object with the ROM of the specific device you want to read.
         If only one DS18x20 device is attached to the bus you may omit the rom parameter.
         """
@@ -171,23 +179,21 @@ class DS18X20(object):
         ow.reset()
         ow.select_rom(rom)
         ow.write_byte(0x44)  # Convert Temp
-        while True:
-            if ow.read_bit():
-                break
+
+    def read_temp_async(self, rom=None):
+        """
+        Read the temperature of one DS18x20 device if the convertion is complete,
+        otherwise return None.
+        """
+        if self.isbusy():
+            return None
+        rom = rom or self.roms[0]
+        ow = self.ow
         ow.reset()
         ow.select_rom(rom)
         ow.write_byte(0xbe)  # Read scratch
         data = ow.read_bytes(9)
         return self.convert_temp(rom[0], data)
-
-    def read_temps(self):
-        """
-        Read and return the temperatures of all attached DS18x20 devices.
-        """
-        temps = []
-        for rom in self.roms:
-            temps.append(self.read_temp(rom))
-        return temps
 
     def convert_temp(self, rom0, data):
         """
