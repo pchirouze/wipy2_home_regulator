@@ -23,7 +23,7 @@ Regulation chauffage eau plancher chauffant
 ----------------------------------------------------------------------------------------------- '''
 
 import json
-import sys
+#import sys
 import time
 
 import _thread
@@ -212,7 +212,7 @@ class regul_vanne(object):
                         if self.position < 100:
                             self.position += (self.t_pulse / self.t_move) * 100
                         else:
-                            self.position = 100
+                            self.position = 100.0
                         self.etape = 2
                     elif t_sortie_vanne > t_cons_eau + self.deadband :
                         self.tempo = self.t_pulse
@@ -460,8 +460,8 @@ def lecture_fichiers():
         dev = ds.roms
         if len(dev) == NBTHERMO:
     # Affectation des thermometres et enregistrement (converti ID en int: bug bytearray en json)
-            for i in range(len(dev)):
-                thermometres['T'+ chr(0x31+i)] = int.from_bytes(dev[i],'little') 
+            for i,idn in enumerate(dev):
+                thermometres['T'+ chr(0x31+i)] = int.from_bytes(idn,'little') 
             f=open('thermo.dat','w')
             f.write(json.dumps(thermometres))
         else:
@@ -473,8 +473,7 @@ def lecture_fichiers():
 #  Gestion watchdog par callback timer
 def wdt_callback(alarm):
     ''' Docstring here '''
-    # import machine
-    print("\n\nReset par WatchDog\n\n")
+    print(alarm, "\n\nReset par WatchDog\n\n")
     time.sleep(0.5)
     machine.reset()
 #
@@ -512,6 +511,7 @@ data_reel={}
 #
 pycom.heartbeat(False)
 all_t_read = 0
+thermometres={}
 while True:
 #    start_t = time.ticks_ms()
     pycom.rgbled(0x080000)
@@ -654,3 +654,4 @@ while True:
 
 # Pour relance nouvelle instance Timer watchdog
         watchdog.__del__()
+
