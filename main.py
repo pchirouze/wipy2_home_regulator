@@ -655,3 +655,4 @@ while True:
 # Pour relance nouvelle instance Timer watchdog
         watchdog.__del__()
 
+#----
