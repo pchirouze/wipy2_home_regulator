@@ -463,6 +463,7 @@ def lecture_fichiers():
             for i,idn in enumerate(dev):
                 thermometres['T'+ chr(0x31+i)] = int.from_bytes(idn,'little') 
             f=open('thermo.dat','w')
+            print(thermometres)
             f.write(json.dumps(thermometres))
         else:
             print('Seulement ', len(dev), 'thermometres detectés sur ', NBTHERMO )
@@ -479,7 +480,6 @@ def wdt_callback(alarm):
 #
 # ------------------------------ Main init -------------------------------------------
 #
-
 ds=onewire.DS18X20(onewire.OneWire(Pin(p_bus_ow)))
 ser=UART(1)         # Init Uart 1 pour liaison compteur electrique EDF
 ser.init(1200, bits=7,  parity=ser.EVEN, stop=1)
@@ -511,15 +511,13 @@ data_reel={}
 #
 pycom.heartbeat(False)
 all_t_read = 0
-thermometres={}
 while True:
-#    start_t = time.ticks_ms()
     pycom.rgbled(0x080000)
 # Init Timer pour watchdog
     watchdog=Timer.Alarm(wdt_callback, 20, periodic=False)
 #Lecture thermometres OneWire (Raffraichi un thermometre par boucle)
     for key in thermometres:
-        start_t = time.ticks_ms()
+        start_t = time.ticks_ms()    
         idt= thermometres[key].to_bytes(8,'little')
         t_lue = ds.read_temp_async(idt)/100.0
         if t_lue >=4095 : # ds18 debranché valeur = 4095.xx
@@ -569,7 +567,7 @@ while True:
     #Gestion protocole Telnet, FTP, MQTT en WiFI   print (wifi, mqtt_ok)
             if wifi is False:
                 lswifi=[]
-                wlan=WLAN(mode=WLAN.STA)
+                wlan=WLAN(mode=WLAN.STA,antenna=WLAN.INT_ANT)
                 try:
                     lswifi=wlan.scan()
                 except:
@@ -654,5 +652,3 @@ while True:
 
 # Pour relance nouvelle instance Timer watchdog
         watchdog.__del__()
-
-#----
