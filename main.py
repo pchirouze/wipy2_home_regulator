@@ -35,19 +35,22 @@ from network import WLAN
 from PID import PID
 from umqtt import MQTTClient
 
+# Constantes et configuration
 #-------------------------- DEBUG ---------------------------
 DEBUG = True
 #DEBUG = False
 #------------------ Emulation compteur EDF ------------------
-#SIMU = const(1)
-SIMU=const(0) 
-# Trame d'emission simulation connexion compteur (téléinfo edf)
+#SIMU = const(0)
+SIMU=const(1) 
+#------------------- Watchdog -------------------------------
+#WATCH_DOG = False
+WATCH_DOG = True
 STX = b'\x02'
 ETX = b'\x03'
-ON = 1  # Pour activer sorties logiques
-OFF = 0
-NBTHERMO = 5 # Nombre de thermometres OneWire
-
+ON = const(1)              # Pour activer sorties logiques
+OFF = const(0)
+NBTHERMO = const(5) # Nombre de thermometres OneWire
+# Trame d'emission simulation connexion compteur (téléinfo edf)
 trame_edf = STX + \
     b'\nADCO 123456789012 $\r' + \
     b'\nOPTARIF HC.. $\r' + \
@@ -471,12 +474,6 @@ def lecture_fichiers():
     finally:
         f.close()
 
-#  Gestion watchdog par callback timer
-def wdt_callback(alarm):
-    ''' Docstring here '''
-    print(alarm, "\n\nReset par WatchDog\n\n")
-    time.sleep(0.5)
-    machine.reset()
 #
 # ------------------------------ Main init -------------------------------------------
 #
@@ -513,14 +510,15 @@ pycom.heartbeat(False)
 all_t_read = 0
 while True:
     pycom.rgbled(0x080000)
-# Init Timer pour watchdog
-    watchdog=Timer.Alarm(wdt_callback, 20, periodic=False)
+# Init watchdog
+    if WATCH_DOG :
+        wdog = machine.WDT(timeout=15000)
 #Lecture thermometres OneWire (Raffraichi un thermometre par boucle)
     for key in thermometres:
         start_t = time.ticks_ms()    
         idt= thermometres[key].to_bytes(8,'little')
         t_lue = ds.read_temp_async(idt)/100.0
-        if t_lue >=4095 : # ds18 debranché valeur = 4095.xx
+        if t_lue >=4095 :                   # ds18 debranché valeur = 4095.xx
             print('Defaut capteur ',key )
             temp[key]=0.0
         else:
@@ -564,7 +562,8 @@ while True:
                 print('Energie heures creuses : ',  c_elec.get_energie() [0] / 1000,  ' kWh')
                 print('Energie heures pleines : ', c_elec.get_energie() [1] / 1000.0,  'kWh')
 
-    #Gestion protocole Telnet, FTP, MQTT en WiFI   print (wifi, mqtt_ok)
+# Gestion protocole Telnet, FTP, MQTT en WiFI   print (wifi, mqtt_ok)
+# if machine.reset_cause() != machine.SOFT_RESET:
             if wifi is False:
                 lswifi=[]
                 wlan=WLAN(mode=WLAN.STA,antenna=WLAN.INT_ANT)
@@ -573,10 +572,10 @@ while True:
                 except:
                     print('Pas de connexion Wifi')
                 for r in lswifi:
-    # freebox et signal > -80 dB
+# freebox et signal > -80 dB
                     if r[0] == SSID and r[4] > -80 :
                         if not wlan.isconnected():
-    #                        wlan.ifconfig(config=('192.168.0.30', '255.255.255.0', '192.168.0.254', '212.27.40.240'))
+#                        wlan.ifconfig(config=('192.168.0.30', '255.255.255.0', '192.168.0.254', '212.27.40.240'))
                             wlan.ifconfig(config='dhcp')
                             wlan.connect(SSID, auth=(WLAN.WPA2, PWID), timeout=50)
                             time.sleep(2)
@@ -586,14 +585,14 @@ while True:
                         wifi=True
                         mqtt_ok=False
             else:
-    # Creation et initialisation protocole MQTT 
+# Creation et initialisation protocole MQTT 
                 if not wlan.isconnected(): wifi=False
                 if mqtt_ok is False:
                     print('Connecte WIFI : ',  wlan.ifconfig())
                     client =MQTTClient("pchirouze",MQTT_server, port = 1883, keepalive=100)
                     try:
                         client.connect(clean_session=True)
-    #                    print ('Connection MQTT')
+        #                    print ('Connection MQTT')
                         client.set_callback(incoming_mess)
                         client.subscribe('/regchauf/cde', qos= 0)
                         client.subscribe('/regchauf/send', qos= 0)
@@ -602,9 +601,9 @@ while True:
                         mqtt_ok = True
                     except:
                         print('MQTT connexion erreur')
-    ####                    client.disconnect() 
+        ####                    client.disconnect() 
                         mqtt_ok=False
-    #####                    machine.reset()
+        #####                    machine.reset()
                 else:
                     try:
                         client.check_msg()
@@ -618,7 +617,7 @@ while True:
                             cpt_send += t_cycle
                             if cpt_send > 3500 :
                                 cpt_send=0
-    # Genere dictionnaire des données temps reel
+# Genere dictionnaire des données temps reel
                                 data_reel['TEMP'] = temp
                                 data_reel['EDF']= data_cpt
                                 data_reel['CONS'] = cons_eau
@@ -637,18 +636,20 @@ while True:
                     else:
                         cpt_send += t_cycle
                         if cpt_send > 10000 :
-    #                        print('PING')
+        #                        print('PING')
                             cpt_send=0
                             client.ping()       # Keep alive command
 
-#--------- Pour simulation liaison compteur Edf (jumper RX-TX loop)
-        if SIMU ==1:  ser.write(trame_edf)
-#--------------------------------------------------------------
+            #--------- Pour simulation liaison compteur Edf (jumper RX-TX loop)
+            if SIMU ==1:  ser.write(trame_edf)
+            #--------------------------------------------------------------
         time.sleep(0.7)
         machine.idle()
-# Calcul temps de cycle (ms)
+        # Calcul temps de cycle (ms)
         t_cycle=time.ticks_diff(start_t, time.ticks_ms())
         if DEBUG : print ('Temps de cycle : ', t_cycle,  ' ms')
 
-# Pour relance nouvelle instance Timer watchdog
-        watchdog.__del__()
+    # Pour relance watchdog
+        if WATCH_DOG :
+            wdog.feed()
+
