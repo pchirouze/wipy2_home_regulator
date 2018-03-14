@@ -589,7 +589,7 @@ while True:
                 if not wlan.isconnected(): wifi=False
                 if mqtt_ok is False:
                     print('Connecte WIFI : ',  wlan.ifconfig())
-                    client =MQTTClient("pchirouze",MQTT_server, port = 1883, keepalive=100)
+                    client =MQTTClient("chauffage",MQTT_server, port = 1883, keepalive=100)
                     try:
                         client.connect(clean_session=True)
         #                    print ('Connection MQTT')
