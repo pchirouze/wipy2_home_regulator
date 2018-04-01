@@ -51,20 +51,21 @@ ON = const(1)              # Pour activer sorties logiques
 OFF = const(0)
 NBTHERMO = const(5) # Nombre de thermometres OneWire
 # Trame d'emission simulation connexion compteur (téléinfo edf)
-trame_edf = STX + \
-    b'\nADCO 123456789012 $\r' + \
-    b'\nOPTARIF HC.. $\r' + \
-    b'\nISOUSC 45 $\r' + \
-    b'\nHCHC 12345678 $\r' + \
-    b'\nHCHP 12345678 $\r' + \
-    b'\nPTEC HP.. $\r' + \
-    b'\nIINST 012 $\r' + \
-    b'\nADPS 123 $\r' + \
-    b'\nIMAX 123 $\r' + \
-    b'\nPAPP 12345 $\r' + \
-    b'\nHHPHC 1 $\r' + \
-    b'\nMOTDETAT 123456 $\r' + \
-    ETX
+if SIMU == 1:
+    trame_edf = STX + \
+        b'\nADCO 123456789012 $\r' + \
+        b'\nOPTARIF HC.. $\r' + \
+        b'\nISOUSC 45 $\r' + \
+        b'\nHCHC 12345678 $\r' + \
+        b'\nHCHP 12345678 $\r' + \
+        b'\nPTEC HP.. $\r' + \
+        b'\nIINST 012 $\r' + \
+        b'\nADPS 123 $\r' + \
+        b'\nIMAX 123 $\r' + \
+        b'\nPAPP 12345 $\r' + \
+        b'\nHHPHC 1 $\r' + \
+        b'\nMOTDETAT 123456 $\r' + \
+        ETX
 
 # ------------------ Constantes ------------------------------------
 #
@@ -146,15 +147,18 @@ def calc_cons_eau(SetP_amb, T_amb, T_ext, params):
     ecart_t=SetP_amb - T_ext + (SetP_amb - T_amb)
     cons=params[0]
     v=0
-    for i in range(len(params)-1):
-        if ecart_t >= params[i+1][0]:
-            v = params[i+1][0] - v
-            cons += v * params[i+1][1]
-            v=params[i+1][0]
-        else:
-            v = ecart_t - v
-            cons+= v * params[i+1][1]
-            break
+    if param_fonct[1] == 1:
+        for i in range(len(params)-1):
+            if ecart_t >= params[i+1][0]:
+                v = params[i+1][0] - v
+                cons += v * params[i+1][1]
+                v=params[i+1][0]
+            else:
+                v = ecart_t - v
+                cons+= v * params[i+1][1]
+                break
+    else:
+        cons = 0
     return cons
 #
 # Controle  circulateur et regulation
@@ -257,7 +261,7 @@ class regul_vanne(object):
 # Regulation chaudiere si solaire insuffisant
 #
 class reg_chaudiere(PID):
-    ''' Classe régulation chaudiere electrique, herité de la classe PID '''
+    ''' Classe régulation chaudiere electrique '''
     def __init__(self,params):
         PID.__init__(self)
         self.puissance = 0
@@ -274,7 +278,7 @@ class reg_chaudiere(PID):
             self.setKi(params[1])
             self.setKd(params[2])
             self.update(t_sortie_chaudiere)             # PID calculation
-            self.output_reg= self.output          # valeur de réglage calcule par la classe PID heritée
+            self.output_reg= self.output
         else:
             self.output_reg=0
         return self.output_reg
@@ -304,6 +308,18 @@ class  ges_elec():
         self.kw_hc = 0
         self.kw_hp = 0
         self.puissance = 0.0
+        self.data_record_pw = {'dateheure': time.localtime(), 'conso_hp': 0.0, 'conso_hc': 0.0}
+        try:
+            f = open('conso_pw.dat','r') 
+            self.data_record_pw = json.loads(f.read())
+            self.kw_hp = self.data_record_pw['conso_hp']
+            self.kw_hc = self.data_record_pw['conso_hc']
+        except:
+            print('Creation fichier conso. elec.')
+            f = open('conso_pw.dat', 'w')
+            f.write(json.dumps(self.data_record_pw))
+        finally:
+            f.close()
 
     def run(self, out_reg, data_edf, t_cycl,  params):
     	''' Docstring here '''
@@ -349,6 +365,23 @@ class  ges_elec():
             error = 1
             self.kw_hp += self.puissance * t_cycl / 3600000  # conversions en w/h
             self.pin_hc(0)      # Si defaut maintenu sur plusieurs jours force en heures creuses
+        try:
+            f = open('conso_pw.dat','rw') 
+            self.data_record_pw = json.loads(f.read())
+        except:
+            print('Defaut lecture fichier consommation elec.')
+        finally:
+            self.heure_fic = data_record_pw['dateheure'][3]
+            self.last_hp = data_record_pw['conso_hp']
+            self.last_hc = data_record_pw['conso_hc']
+
+ # Enregistre dans le fichier si plus d'une heure passé et conso hp ou hc differente des dernieres enregistrés
+            if self.heur_fic != time.localtime()[3]  and (self.last_hp != self.kw_hp or self.last_hc != self.kw_hc):
+                self.data_record_pw['dateheure'] = time.localtime()
+                self.data_record_pw['conso_hp'] = self.kw_hp
+                self.data_record_pw['conso_hc'] = self.kw_hc
+                f.write(json.dumps(self.data_record_pw))
+            f.close()
         return error
 
     def get_power(self):
