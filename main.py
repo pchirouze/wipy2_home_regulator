@@ -597,6 +597,12 @@ while True:
                         etape_wifi = 2
                     except:
                         print('MQTT connexion erreur')
+                    if machine.reset_cause() == machine.WDT_RESET:
+                        print('Test reset watchdog\n\n')
+                        txtlog = 'Reset sur watchdog: ' + str(time.localtime())
+                        f=open('log.txt','a+')
+                        f.write(txtlog)   
+                        f.close()
 # WIFI et MQTT Ok 
             if etape_wifi == 2:
                 if not wlan.isconnected():
