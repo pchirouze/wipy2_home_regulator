@@ -25,9 +25,9 @@ Regulation chauffage eau plancher chauffant
 import json
 #import sys
 import time
-
+#import gc
 import _thread
-import machine
+#import machine
 import onewire
 import pycom
 from machine import RTC, UART, Pin, Timer, WDT
@@ -40,7 +40,7 @@ from umqtt import MQTTClient
 DEBUG = True
 #DEBUG = False
 #------------------ Emulation compteur EDF ------------------
-SIMU = const(0)
+#SIMU = const(0)
 #SIMU=const(1) 
 #------------------- Watchdog -------------------------------
 #WATCH_DOG = False
@@ -51,26 +51,24 @@ ON = const(1)              # Pour activer sorties logiques
 OFF = const(0)
 NBTHERMO = const(5) # Nombre de thermometres OneWire
 # Trame d'emission simulation connexion compteur (téléinfo edf)
-trame_edf = STX + \
-    b'\nADCO 123456789012 $\r' + \
-    b'\nOPTARIF HC.. $\r' + \
-    b'\nISOUSC 45 $\r' + \
-    b'\nHCHC 12345678 $\r' + \
-    b'\nHCHP 12345678 $\r' + \
-    b'\nPTEC HP.. $\r' + \
-    b'\nIINST 012 $\r' + \
-    b'\nADPS 123 $\r' + \
-    b'\nIMAX 123 $\r' + \
-    b'\nPAPP 12345 $\r' + \
-    b'\nHHPHC 1 $\r' + \
-    b'\nMOTDETAT 123456 $\r' + \
-    ETX
+# if SIMU == 1:
+#    trame_edf = STX + \
+#        b'\nADCO 123456789012 $\r' + \
+#        b'\nOPTARIF HC.. $\r' + \
+#        b'\nISOUSC 45 $\r' + \
+#        b'\nHCHC 12345678 $\r' + \
+#        b'\nHCHP 12345678 $\r' + \
+#        b'\nPTEC HP.. $\r' + \
+#        b'\nIINST 012 $\r' + \
+#        b'\nADPS 123 $\r' + \
+#        b'\nIMAX 123 $\r' + \
+#        b'\nPAPP 12345 $\r' + \
+#        b'\nHHPHC 1 $\r' + \
+#        b'\nMOTDETAT 123456 $\r' + \
+#        ETX
 
 # ------------------ Constantes ------------------------------------
 #
-# Identifiant interne capteur a changé si changement de capteur(en decimal 5 derniers digits)
-# THERMOMETRES = {27702:'T1', 28196:'T2', 29859:'T3', 27423:'T4', 23570:'T5'}
-
 #----------- Parametres par defaut pour creation fichiers ----------------------------
 # T eau fonction de T ext, Consigne ambiante et ecart consigne ambiante - T ambianteregul_chauffe.py
 # Parametres pour calcul loi d'eau lineaire par segment : 
@@ -105,8 +103,8 @@ p_hc = 'P9'                     # Heures creuses
 # WIFI ID , PWD, MQTT broker
 SSID='freebox_PC'
 PWID='parapente'
-MQTT_server="iot.eclipse.org"
-
+#MQTT_server="iot.eclipse.org"
+MQTT_server = 'm23.cloudmqtt.com'
 # Thread reception téléinformation compteur EDF
 
 def edf_recv(serial):
@@ -301,8 +299,15 @@ class  ges_elec():
         self.pin_hc = pin_hc
         self.pin_hc.init(mode = pin_hc.OUT)
         self.nbr = 0
-        self.kw_hc = 0
-        self.kw_hp = 0
+# Recupere compteur dans NVRAM si existe, sinon les creent
+        self.kw_hc = 0.0
+        self.kw_hp = 0.0
+        if pycom.nvs_get('cpt_hc') == None:
+            pycom.nvs_set('cpt_hc',0)
+            pycom.nvs_set('cpt_hp',0)
+        else:
+            self.kw_hc = float(pycom.nvs_get('cpt_hc'))
+            self.kw_hp = float(pycom.nvs_get('cpt_hp'))
         self.puissance = 0.0
 
     def run(self, out_reg, data_edf, t_cycl,  params):
@@ -339,10 +344,14 @@ class  ges_elec():
         self.puissance = self.nbR * params[4] * params[5]
         try :
             if data_edf['PTEC'] == 'HC..':
-                self.kw_hc += self.puissance * t_cycl / 3600000  # conversions en w/h
+                if self.puissance > 0 :
+                    self.kw_hc += self.puissance * t_cycl / 3600000  # conversions en w/h
+                    pycom.nvs_set('cpt_hc',int(self.kw_hc))
                 self.pin_hc(0)
             elif data_edf['PTEC'] == 'HP..':
-                self.kw_hp += self.puissance * t_cycl / 3600000  # conversions en w/h
+                if self.puissance > 0 :
+                    self.kw_hp += self.puissance * t_cycl / 3600000  # conversions en w/h
+                    pycom.nvs_set('cpt_hp',int(self.kw_hp))
                 self.pin_hc(1)
             error = 0
         except:
@@ -509,11 +518,13 @@ alive = False
 #
 pycom.heartbeat(False)
 all_t_read = 0
-while True:
-    pycom.rgbled(0x080000)
+on_time = False
+
 # Init watchdog
-    if WATCH_DOG :
-        wdog = WDT(timeout=15000)
+if WATCH_DOG :
+    wdog = WDT(timeout=15000)
+pycom.rgbled(0x080000)
+while True:
 #Lecture thermometres OneWire (Raffraichi un thermometre par boucle)
     for key in thermometres:
         start_t = time.ticks_ms()    
@@ -566,26 +577,37 @@ while True:
             if etape_wifi == 0:
                 lswifi=[]
                 wlan=WLAN(mode=WLAN.STA,antenna=WLAN.INT_ANT)
-                try:
-                    lswifi=wlan.scan()
-                except:
-                    print('Pas de connexion Wifi')
-                for r in lswifi:
-# freebox et signal > -80 dB
-                    if r[0] == SSID and r[4] > -80 :
-#                        wlan.ifconfig(config=('192.168.0.30', '255.255.255.0', '192.168.0.254', '212.27.40.240'))
-                        wlan.ifconfig(config='dhcp')
-                        wlan.connect(SSID, auth=(WLAN.WPA2, PWID), timeout=50)
-                        time.sleep(2)
-                        etape_wifi = 1
-
+                lswifi=wlan.scan()
+                if lswifi==[]:
+                    #wlan.disconnect()
+                    #wlan.init(mode=WLAN.AP, ssid='WIPY-PC', auth=(WLAN.WPA2, 'password'),channel=6,antenna=WLAN.INT_ANT)                    
+                    #print('WIFI Connecté en mode point accès SSID : WIPY_PC')
+                    #etape_wifi = 3
+                    time.sleep(0.5)
+                else:
+                    for r in lswifi:
+    # freebox et signal > -80 dB
+                        if DEBUG: print(r)
+                        if r[0] == SSID and r[4] > -80 :
+    #                        wlan.ifconfig(config=('192.168.0.30', '255.255.255.0', '192.168.0.254', '212.27.40.240'))
+                            wlan.ifconfig(config='dhcp')
+                            wlan.connect(SSID, auth=(WLAN.WPA2, PWID), timeout=50)
+                            time.sleep(2)
+                            etape_wifi = 1
+ 
 # Creation et initialisation protocole MQTT 
             if etape_wifi == 1:
                 if wlan.isconnected(): 
                     print('Connecte WIFI : ',  wlan.ifconfig())
                     rtc=RTC()
-                    rtc.ntp_sync("pool.ntp.org")
+                    #rtc.ntp_sync("pool.ntp.org")
+                    rtc.ntp_sync("ntp.midway.ovh")
                     time.timezone(3600)
+                    etape_wifi = 2
+                else:
+                    print('Wifi not connected')
+            
+            if etape_wifi == 2:        
                     client =MQTTClient("chauffage",MQTT_server, port = 1883, keepalive=100)
                     try:
                         client.connect(clean_session=True)
@@ -594,17 +616,15 @@ while True:
                         client.subscribe('/regchauf/send', qos= 0)
                         client.subscribe('/regchauf/cons', qos= 0)
                         print('Connecte au serveur MQTT : ',  MQTT_server)
-                        etape_wifi = 2
+                        etape_wifi = 3
                     except:
-                        print('MQTT connexion erreur')
-                    if machine.reset_cause() == machine.WDT_RESET:
-                        print('Test reset watchdog\n\n')
-                        txtlog = 'Reset sur watchdog: ' + str(time.localtime())
-                        f=open('log.txt','a+')
-                        f.write(txtlog)   
-                        f.close()
+                        client.disconnect()
+                        time.sleep(1)
+                        wifi_etape = 1
+                
+   
 # WIFI et MQTT Ok 
-            if etape_wifi == 2:
+            if etape_wifi == 3:
                 if not wlan.isconnected():
                     etape_wifi = 0                    
                 try:
@@ -630,13 +650,22 @@ while True:
                         client.disconnect()
                         print('MQTT publication erreur')
                         etape_wifi = 1
-                
+                    
                 alive = not alive
                 client.publish('/regchauf/alive', bytes(str(alive), "utf8"))
+# Test si reset sur watchdog 
+                if machine.reset_cause() == machine.WDT_RESET and not on_time:
+                    print('Reset par watchdog\n\n')
+                    txtlog = 'Reset watchdog: ' + str(time.localtime()) + '\n'
+                    f=open('log.txt','a+')
+                    f.write(txtlog)   
+                    f.close()
+                    on_time = True
+                    
 
             if DEBUG: print('Etape Wifi: ', etape_wifi) 
             #--------- Pour simulation liaison compteur Edf (jumper RX-TX loop)
-            if SIMU == 1:  ser.write(trame_edf)
+            # if SIMU == 1:  ser.write(trame_edf)
             #--------------------------------------------------------------
 
             time.sleep(0.7)
@@ -644,7 +673,7 @@ while True:
             t_cycle=time.ticks_diff(start_t, time.ticks_ms())
             machine.idle()
             if DEBUG : print ('Temps de cycle : ', t_cycle,  ' ms')
-
+        
     # Pour relance watchdog
         if WATCH_DOG :
             wdog.feed()

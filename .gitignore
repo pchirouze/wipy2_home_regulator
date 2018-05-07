@@ -1,2 +1,6 @@
 pylintrc
 pymakr.conf
+*.txt
+*.json
+.Programmes test
+pymakr.conf
