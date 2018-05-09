@@ -357,6 +357,7 @@ class  ges_elec():
         except:
             error = 1
             self.kw_hp += self.puissance * t_cycl / 3600000  # conversions en w/h
+            pycom.nvs_set('cpt_hp',int(self.kw_hp))
             self.pin_hc(0)      # Si defaut maintenu sur plusieurs jours force en heures creuses
         return error
 
