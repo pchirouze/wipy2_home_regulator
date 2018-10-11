@@ -3,11 +3,11 @@
 ''' ------------------------------------------------------------------------------------------------
 Regulation chauffage eau plancher chauffant
     * Acquisition thermometres  DS18x20 (Pin 22)
-        T1 : Température extérieure
-        T2 : Température ambiante
-        T3 : Température cuve solaire niveau interméiaire
-        T4 : Température sortie vanne 3V
-        T5 : Temperature sortie chaudiere
+        Text : Température extérieure
+        Tint : Température ambiante
+        Tcuv : Température cuve solaire niveau interméiaire
+        Tv3v : Température sortie vanne 3V
+        Tsch : Temperature sortie chaudiere
     * Lecture téléinformation compteur  (Pin 4)
         Gestion déléstage si chauffage electrique
         Cumul consommation electrique chauffage (Heures creuses et pleines)
@@ -27,7 +27,7 @@ import json
 import time
 #import gc
 import _thread
-#import machine
+import machine
 import onewire
 import pycom
 from machine import RTC, UART, Pin, Timer, WDT
@@ -72,8 +72,8 @@ NBTHERMO = const(5) # Nombre de thermometres OneWire
 #----------- Parametres par defaut pour creation fichiers ----------------------------
 # T eau fonction de T ext, Consigne ambiante et ecart consigne ambiante - T ambianteregul_chauffe.py
 # Parametres pour calcul loi d'eau lineaire par segment : 
-# (offset(°C), (t_max_zon1(°C), pente1), (t_max2(°C),_zon2 pente2), ...)
-param_cons = (24, (10, 0.5), (20, 0.45), (30, 0.42), (40, 0.40))
+# (offset(°C), (t_max_zon1(°C), pente1), (t_max2(°C),_zon2 pente2), ...,Use_T_int True/False)
+param_cons = (24, (10, 0.5), (20, 0.45), (30, 0.42), (40, 0.40), False)
 
 # Parametres pour regulation vanne
 # (T cuve mini utilisable(°C), Bande morte regul(°C), t(s) pulse+/-, t(s) attente, t(s) ouverture 0-100%)
@@ -100,13 +100,14 @@ p_R3 = 'P7'                     # Cde resistance R3
 p_R4 = 'P8'                     # Cde resistance R4
 p_hc = 'P9'                     # Heures creuses
 
+T_NOM_TH =['Tsch', 'Text', 'Tint', 'Tv3v', 'Tcuv'] # Si changement DS18 adapté l'ordre 
 # WIFI ID , PWD, MQTT broker
 SSID='freebox_PC'
 PWID='parapente'
 #MQTT_server="iot.eclipse.org"
 MQTT_server = 'm23.cloudmqtt.com'
-# Thread reception téléinformation compteur EDF
 
+# Thread reception téléinformation compteur EDF
 def edf_recv(serial):
     ''' Docstring de la fonction '''
     global dic_edf, new_lec
@@ -129,7 +130,7 @@ def edf_recv(serial):
                 encours=False
 ###                serial.readall()
                 tabl=[item.split(' ') for item in mes.decode().strip('\n\r\x02\x03').split('\r\n')]
-                dic=dict([[item[0], item[1]] for item in tabl if(len(item)==3)])
+                dic=dict([[item[0], item[1]] for item in tabl])
                 lock.acquire()
                 dic_edf=dic.copy()
                 new_lec=True
@@ -468,13 +469,14 @@ def lecture_fichiers():
         data=f.read()
         thermometres = json.loads(data)
     except:
-        print('Erreur lecture fichier thermometres')
+        print('Erreur lecture fichier thermo.dat')
         thermometres = {}
         dev = ds.roms
+        ## sys.exit()
         if len(dev) == NBTHERMO:
     # Affectation des thermometres et enregistrement (converti ID en int: bug bytearray en json)
             for i,idn in enumerate(dev):
-                thermometres['T'+ chr(0x31+i)] = int.from_bytes(idn,'little') 
+                thermometres[T_NOM_TH[i]] = int.from_bytes(idn,'little') 
             f=open('thermo.dat','w')
             print(thermometres)
             f.write(json.dumps(thermometres))
@@ -552,19 +554,24 @@ while True:
                 print('Defaut lecture teleinfo EDF')
             new_lec=False
             lock.release()
+                        
             if DEBUG :        print('Compteur EDF : ',  data_cpt)
     # Calcul consigne  temp eau chauffage
-            cons_eau= calc_cons_eau(param_fonct[0], temp['T1'],  temp['T2'], param_cons )
+#            if param_cons[5] is True:   # Test si utilisation temp ambiante
+#                cons_amb = temp['Tint']   # Commenter manque mémoire !!!!!!
+#            else:
+#                cons_amb = 19.5
+            cons_eau= calc_cons_eau(param_fonct[0], 19.5,  temp['Tint'], param_cons )
             if DEBUG :  print('Temp. consigne eau : ',  cons_eau)
     # Controle circulateur
-            etat_circ = cnt_circulateur(param_fonct[0],  temp['T2'], s_circul, param_fonct[1] )
+            etat_circ = cnt_circulateur(param_fonct[0],  temp['Tint'], s_circul, param_fonct[1] )
             if DEBUG : print('Cde circulateur : ', etat_circ)
     # Regulation vanne 3 voie sur circuit solaire
-            reg_v.run(cons_eau,  temp['T3'],  temp['T4'],  t_cycle,  etat_circ)
+            reg_v.run(cons_eau,  temp['Tcuv'],  temp['Tv3v'],  t_cycle,  etat_circ)
             position=reg_v.get_pos_vanne()
             if DEBUG : print('Ouverture vanne : ',  position,  ' %')
     # Regulation chaudiere
-            reg_c.run(cons_eau, temp['T5'], etat_circ,  param_chaudiere)
+            reg_c.run(cons_eau, temp['Tsch'], etat_circ,  param_chaudiere)
             if DEBUG : print('Sortie PID chaudiere : ',  reg_c.get_outputReg())
     # Gestion electrique  (delestage)
             erreur = c_elec.run(reg_c.get_outputReg(),  data_cpt, t_cycle,   param_electrique)
