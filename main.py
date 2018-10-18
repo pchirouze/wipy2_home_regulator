@@ -7,7 +7,6 @@ Regulation chauffage eau plancher chauffant
         Tint : Température ambiante
         Tcuv : Température cuve solaire niveau interméiaire
         Tv3v : Température sortie vanne 3V
-        Tsch : Temperature sortie chaudiere
     * Lecture téléinformation compteur  (Pin 4)
         Gestion déléstage si chauffage electrique
         Cumul consommation electrique chauffage (Heures creuses et pleines)
@@ -32,7 +31,7 @@ import onewire
 import pycom
 from machine import RTC, UART, Pin, Timer, WDT
 from network import WLAN
-from PID import PID
+#from PID import PID
 from umqtt import MQTTClient
 
 # Constantes et configuration
@@ -49,7 +48,7 @@ STX = b'\x02'
 ETX = b'\x03'
 ON = const(1)              # Pour activer sorties logiques
 OFF = const(0)
-NBTHERMO = const(5) # Nombre de thermometres OneWire
+NBTHERMO = const(4) # Nombre de thermometres OneWire
 # Trame d'emission simulation connexion compteur (téléinfo edf)
 # if SIMU == 1:
 #    trame_edf = STX + \
@@ -73,19 +72,14 @@ NBTHERMO = const(5) # Nombre de thermometres OneWire
 # T eau fonction de T ext, Consigne ambiante et ecart consigne ambiante - T ambianteregul_chauffe.py
 # Parametres pour calcul loi d'eau lineaire par segment : 
 # (offset(°C), (t_max_zon1(°C), pente1), (t_max2(°C),_zon2 pente2), ...,Use_T_int True/False)
-param_cons = (24, (10, 0.5), (20, 0.45), (30, 0.42), (40, 0.40), False)
+param_cons = [24, (10, 0.5), (20, 0.45), (30, 0.42), (40, 0.40), False]
 
 # Parametres pour regulation vanne
-# (T cuve mini utilisable(°C), Bande morte regul(°C), t(s) pulse+/-, t(s) attente, t(s) ouverture 0-100%)
-param_vanne = (26.0, 0.5, 5, 20, 60)
-
-# Parametres pour regulation chaudiere electrique
-# Kp,  Ki,  Kd, temps de cycle(s), max integrateur(°C)
-param_chaudiere = (1.0, 0.1, 0.2, 10,  3)
-
-# Parametres gestion commande electrique,
-# (Seuils Cde résistances 1, 2 ,3, 4, courant(A), tension(V) unitaire par résistance)
-param_electrique = (0.2,  0.3,  0.45, 0.6,  7.15,  230)
+# (T cuve mini utilisable(°C), Bandemorte regul(°C), t(s) pulse+/-, t(s) attente, t(s) ouverture 0-100%)
+param_vanne = [26.0, 0.5, 5, 20, 120]
+# Parametres gestion commande electrique thermoplongeur
+# (DT calcul cons en HC, DT calcul cons en HP, courant(A), tension(V) unitaire par résistance)
+param_thermop = [25.0, 3.0, 8.52,  230]
 # Parametres de fonctionnement
 # (Consigne T amb,(°C), Marche(1) Arret(0) chauffage)
 param_fonct = [20.0, 1]
@@ -100,7 +94,7 @@ p_R3 = 'P7'                     # Cde resistance R3
 p_R4 = 'P8'                     # Cde resistance R4
 p_hc = 'P9'                     # Heures creuses
 
-T_NOM_TH =['Tsch', 'Text', 'Tint', 'Tv3v', 'Tcuv'] # Si changement DS18 adapté l'ordre 
+T_NOM_TH =['Text', 'Tint', 'Tcuv', 'Tv3v'] # Si changement DS18 modifié fichier thermo.dat
 # WIFI ID , PWD, MQTT broker
 SSID='freebox_PC'
 PWID='parapente'
@@ -161,10 +155,10 @@ def calc_cons_eau(SetP_amb, T_amb, T_ext, params):
 def cnt_circulateur(cons_amb,  t_amb, pin_cde, marche):
     ''' Commande circulateur '''
     if marche==1 and t_amb < cons_amb + 1.5:
-        pin_cde(0)
+        pin_cde(ON)
         return 1
     else :
-        pin_cde(1)
+        pin_cde(OFF)
         return 0
 #
 # Regulation vanne 3 voies sur circuit solaire chauffage
@@ -195,7 +189,7 @@ class regul_vanne(object):
             print('Etape regulation : ', self.etape)
         if self.etape == 0:         # Fermeture vanne position initiale de depart
             self.tempo = self.t_move
-            self.pin_m(0)             # Collecteur ouvert 0 ---> active actionneur
+            self.pin_m(ON)             # active actionneur
             self.position = 0.0     # % ouverture vanne
             self.etape = 3
 
@@ -204,12 +198,12 @@ class regul_vanne(object):
                 if t_cuve > self.t_cuve_min :
                     if t_cons_eau > t_cuve :
                         self.tempo=self.t_move           # Ouverture vanne a 100 %
-                        self.pin_p(0)                             # Collecteur ouvert 0 ---> active actionneur
+                        self.pin_p(ON)                   # active actionneur
                         self.position = 100.0                # % ouverture vanne
                         self.etape = 3
                     elif t_sortie_vanne < t_cons_eau - self.deadband:
                         self.tempo = self.t_pulse
-                        self.pin_p(0)
+                        self.pin_p(ON)
                         print('Pulse +')
                         if self.position < 100:
                             self.position += (self.t_pulse / self.t_move) * 100
@@ -218,7 +212,7 @@ class regul_vanne(object):
                         self.etape = 2
                     elif t_sortie_vanne > t_cons_eau + self.deadband :
                         self.tempo = self.t_pulse
-                        self.pin_m(0)
+                        self.pin_m(ON)
                         print('Pulse -')
                         if self.position > 0:
                             self.position -= (self.t_pulse / self.t_move ) * 100
@@ -227,7 +221,7 @@ class regul_vanne(object):
                         self.etape = 2
                 else:
                     self.tempo = self.t_move
-                    self.pin_m(0)             # Collecteur ouvert 0 ---> active actionneur
+                    self.pin_m(ON)             # Collecteur ouvert 0 ---> active actionneur
                     self.position = 0.0     # % ouverture vanne
                     self.etape = 3
 
@@ -235,8 +229,8 @@ class regul_vanne(object):
             if self.tempo > 0 :
                 self.tempo -= t_cycl
             else:
-                self.pin_p(1)
-                self.pin_m(1)
+                self.pin_p(OFF)
+                self.pin_m(OFF)
                 self.tempo = self.t_wait
                 self.etape = 3
 
@@ -244,8 +238,8 @@ class regul_vanne(object):
             if self.tempo > 0 :
                 self.tempo -= t_cycl
             else:
-                self.pin_p(1)
-                self.pin_m(1)
+                self.pin_p(OFF)
+                self.pin_m(OFF)
                 self.etape = 1
 
     def get_pos_vanne(self):
@@ -253,53 +247,18 @@ class regul_vanne(object):
         return self.position
 
 #
-# Regulation chaudiere si solaire insuffisant
+# Gestion commande thermoplongeur, delestage electrique, calcul puissance de chauffage en heures creuses et en heures pleines
 #
-class reg_chaudiere(PID):
-    ''' Classe régulation chaudiere electrique, herité de la classe PID '''
-    def __init__(self,params):
-        PID.__init__(self)
-        self.puissance = 0
-        self.output_reg=0
-        self.setSampleTime(params[3])
-        self.setWindup(params[4])
-
-
-    def run(self, t_cons_eau,  t_sortie_chaudiere, circulateur,  params):
-        ''' Activation regulation '''
-        if circulateur ==1 :
-            self.setSetpoint(t_cons_eau)
-            self.setKp(params[0])
-            self.setKi(params[1])
-            self.setKd(params[2])
-            self.update(t_sortie_chaudiere)             # PID calculation
-            self.output_reg= self.output          # valeur de réglage calcule par la classe PID heritée
-        else:
-            self.output_reg=0
-        return self.output_reg
-
-    def get_outputReg(self):
-        ''' Lecture données sorties régulation '''
-        return self.output_reg
-
-#
-# Gestion delestage electrique et calcul puissance de chauffage en heures creuses et en heures pleines
-#
-class  ges_elec():
-    ''' Lecture compteur EDF '''
-    def __init__(self, pin_r1,  pin_r2,  pin_r3,  pin_r4,  pin_hc):
-        self.p_r = []
-        self.p_r.append( pin_r1)
-        self.p_r[0].init(mode=pin_r1.OUT)
-        self.p_r.append( pin_r2)
-        self.p_r[1].init(mode=pin_r2.OUT)
-        self.p_r.append( pin_r3)
-        self.p_r[2].init(mode=pin_r3.OUT)
-        self.p_r.append( pin_r4)
-        self.p_r[3].init(mode=pin_r4.OUT)
-        self.pin_hc = pin_hc
-        self.pin_hc.init(mode = pin_hc.OUT)
-        self.nbr = 0
+class  ges_thermoplongeur(object):
+    ''' Controle thermoplongeur '''
+    def __init__(self, pin_r1,  pin_r2,  pin_r3,  pin_hc):
+        self.pin_R = [Pin(pin_r1), Pin(pin_r2), Pin(pin_r3)]
+        self.pin_R[0].init(mode=Pin.OUT)
+        self.pin_R[1].init(mode=Pin.OUT)
+        self.pin_R[2].init(mode=Pin.OUT)
+        self.pin_hc = Pin(pin_hc)
+        self.pin_hc.init(mode = Pin.OUT)
+        self.nbr_activ = 0
 # Recupere compteur dans NVRAM si existe, sinon les creent
         self.kw_hc = 0.0
         self.kw_hp = 0.0
@@ -311,56 +270,69 @@ class  ges_elec():
             self.kw_hp = float(pycom.nvs_get('cpt_hp'))
         self.puissance = 0.0
 
-    def run(self, out_reg, data_edf, t_cycl,  params):
+# Fonction gestion pilotage résistance thermoplongeur et delestage
+    def _delestage(self,nbR, nbr_activ, Idispo, Irmoy):
+        self.nbr_activ= nbr_activ
+        if Idispo > Irmoy :                # Irmoy courant pour une resistance
+            if self.nbr_activ < nbR:
+                self.pin_R[self.nbr_activ].value(ON)  
+                self.nbr_activ += 1
+        else:
+            # Delestage
+            if self.nbr_activ > 0:
+                self.nbr_activ -= 1
+                self.pin_R[self.nbr_activ].value(OFF) 
+        return self.nbr_activ
+
+    def run(self, marche, t_cons_eau, t_cuve, data_edf, t_cycl,  params):
     	''' Docstring here '''
-        self.output_reg = out_reg
-#
 # Calcul du courant disponible pour le chauffage (delestage)
         try:
             self.iinst= int(data_edf['IINST'])
             self.imax= int(data_edf['ISOUSC'])
-            error = 0
+            self.t_encours = data_edf['PTEC']
+            self.error = 0
         except :
-            error = 1
+            self.error = 1
             self.iinst =0
-            self.imax = 45
-# Calcul le nombre de resistances actionnables
-        nbr_max = (self.imax - self.iinst) / params[4]
-# Determine le nombre de resistances souhaité par le PID
-        if self.output_reg < params[0]:
-            self.nbR = 0
-        elif self.output_reg  < params[1]:
-            self.nbR = 1
-        elif self.output_reg  < params[2]:
-            self.nbR = 2
-        elif self.output_reg  < params[3]:
-            self.nbR = 3
+            self.imax = 35
+            self.t_encours = 'HP..'
+        self.Idispo = self.imax - self.iinst
+        # Positionne la sortie HC/HP
+        if self.t_encours == 'HC..':
+            self.pin_hc.value(ON)
         else:
-            self.nbR = 4
-# Pilotage des sorties de commandes resitances chaudiere
-        if self.nbR > nbr_max:
-            self.nbR = nbr_max
-        for i in range(4): self.p_r[i].value(OFF)             #Reset sorties
-        for i in range(self.nbR):  self.p_r[i].value(ON)   #Set sorties cde resistances
-        self.puissance = self.nbR * params[4] * params[5]
-        try :
-            if data_edf['PTEC'] == 'HC..':
-                if self.puissance > 0 :
-                    self.kw_hc += self.puissance * t_cycl / 3600000  # conversions en w/h
-                    pycom.nvs_set('cpt_hc',int(self.kw_hc))
-                self.pin_hc(0)
-            elif data_edf['PTEC'] == 'HP..':
-                if self.puissance > 0 :
-                    self.kw_hp += self.puissance * t_cycl / 3600000  # conversions en w/h
-                    pycom.nvs_set('cpt_hp',int(self.kw_hp))
-                self.pin_hc(1)
-            error = 0
-        except:
-            error = 1
-            self.kw_hp += self.puissance * t_cycl / 3600000  # conversions en w/h
-            pycom.nvs_set('cpt_hp',int(self.kw_hp))
-            self.pin_hc(0)      # Si defaut maintenu sur plusieurs jours force en heures creuses
-        return error
+            self.pin_hc.value(OFF)
+   
+# Controle chauffage par thermoplongeur
+        # Marche chauffage et heures creuses
+        if marche and self.t_encours == 'HC..':
+            # Chauffe si T cuve < Cons T eau + T acc:umulation HC
+            if t_cuve < params[0] + t_cons_eau :
+                # Cde 3 resistances thermo suivant delestage ou non (0 a 6 kW)
+                self.nbr_activ = self._delestage(3, self.nbr_activ, self.Idispo, param_thermop[2])
+            else:
+                # Reset cde resistance thermoplongeurs
+                self.nbr_activ = 0 
+        # Marche et heures pleines
+        else :
+            if marche :
+                # Chauffe si T cuve < Cons T eau + T accumulation HC
+                if t_cuve < params[1] + t_cons_eau :
+                    # Cde resistances thermo suivant delestage ou non (0 a 4 kW)
+                    self.nbr_activ = self._delestage(2, self.nbr_activ, self.Idispo, param_thermop[2])
+                else:
+                    # Reset cde resistance thermoplongeurs   
+                    self.nbr_activ = 0       
+        # Gestion comptage puissance chauffage
+        self.puissance = self.nbr_activ * params[2] * params[3]
+        if self.puissance > 0 :
+            if self.t_encours == 'HC..' :
+                self.kw_hc += self.puissance * t_cycl / 3600000  # conversions en w/h
+                pycom.nvs_set('cpt_hc',int(self.kw_hc))     
+            else :
+                self.kw_hp += self.puissance * t_cycl / 3600000  # conversions en w/h
+                pycom.nvs_set('cpt_hp',int(self.kw_hp))                       
 
     def get_power(self):
     	''' Docstring here '''
@@ -369,6 +341,7 @@ class  ges_elec():
     def get_energie(self):
     	''' Docstring here '''
         return self.kw_hc,  self.kw_hp
+
 #
 # Callbacks connexion MQTT protocole to free broker
 #
@@ -407,12 +380,12 @@ def incoming_mess(topic, msg):
 
 def lecture_fichiers():
     ''' Lecture fichiers configurations '''
-    global param_fonct,  param_cons,  param_vanne,  param_chaudiere,  param_electrique, thermometres
+    global param_fonct,  param_cons,  param_vanne,  param_thermop,  thermometres
     try:
         f=open('p_cons.dat', 'r')
         param_cons=json.loads(f.read())
     except:
-        print('Erreur lecture fichier parametres')
+        print('Erreur lecture fichier parametres calcul consigne eau')
     finally:
         #Cree fichier parametres par defaut
         f=open('p_cons.dat','w')
@@ -423,7 +396,7 @@ def lecture_fichiers():
         f=open('p_vanne.dat', 'r')
         param_vanne=json.loads(f.read())
     except:
-        print('Erreur lecture fichier parametres')
+        print('Erreur lecture fichier parametres vanne')
     finally:
         #Cree fichier parametres par defaut
         f=open('p_vanne.dat','w')
@@ -431,32 +404,22 @@ def lecture_fichiers():
         f.close()
 
     try:
-        f=open('p_chaud.dat', 'r')
-        param_chaudiere=json.loads(f.read())
+        f=open('p_thermop.dat', 'r')
+        param_thermop=json.loads(f.read())
     except:
-        print('Erreur lecture fichier parametres')
+        print('Erreur lecture fichier parametres thermoplongeur')
     finally:
         #Cree fichier parametres par defaut
-        f=open('p_chaud.dat','w')
-        f.write(json.dumps(param_chaudiere))
+        f=open('p_thermop.dat','w')
+        f.write(json.dumps(param_thermop))
         f.close()
 
-    try:
-        f=open('p_elec.dat', 'r')
-        param_electrique=json.loads(f.read())
-    except:
-        print('Erreur lecture fichier parametres')
-    finally:
-        #Cree fichier parametres par defaut
-        f=open('p_elec.dat','w')
-        f.write(json.dumps(param_electrique))
-        f.close()
-
+    
     try:
         f=open('p_fonct.dat', 'r')
         param_fonct=json.loads(f.read())
     except:
-        print('Erreur lecture fichier parametres')
+        print('Erreur lecture fichier parametres fonctionnement')
     finally:
         #Cree fichier parametres
         f=open('p_fonct.dat', 'w')
@@ -467,7 +430,9 @@ def lecture_fichiers():
     try:
         f=open('thermo.dat', 'r')
         data=f.read()
+        #print(data)
         thermometres = json.loads(data)
+        print('Fichier thermotres lu', thermometres)
     except:
         print('Erreur lecture fichier thermo.dat')
         thermometres = {}
@@ -504,10 +469,9 @@ all_th = False
 t_cycle= 0
 # Sortie Cde circulateur
 s_circul = Pin(p_circu, mode = Pin.OUT)
-# Instances  regulation vanne, chaudiere et gestion electrique
+# Instances  regulation vanne, thermoplongeur
 reg_v = regul_vanne(Pin(p_v3v_p),  Pin(p_v3v_m),  param_vanne)
-reg_c = reg_chaudiere(param_chaudiere)
-c_elec = ges_elec(Pin(p_R1),  Pin(p_R2),  Pin(p_R3),  Pin(p_R4),  Pin(p_hc))
+reg_c = ges_thermoplongeur(p_R1, p_R2, p_R3, p_hc)
 # Lecture fichiers parametres
 lecture_fichiers()
 etape_wifi = 0
@@ -525,7 +489,7 @@ on_time = False
 
 # Init watchdog
 if WATCH_DOG :
-    wdog = WDT(timeout=15000)
+    wdog = WDT(timeout=20000)
 pycom.rgbled(0x080000)
 while True:
 #Lecture thermometres OneWire (Raffraichi un thermometre par boucle)
@@ -554,32 +518,33 @@ while True:
                 print('Defaut lecture teleinfo EDF')
             new_lec=False
             lock.release()
-                        
             if DEBUG :        print('Compteur EDF : ',  data_cpt)
+    
     # Calcul consigne  temp eau chauffage
-#            if param_cons[5] is True:   # Test si utilisation temp ambiante
-#                cons_amb = temp['Tint']   # Commenter manque mémoire !!!!!!
-#            else:
-#                cons_amb = 19.5
+            if param_cons[5] is True:   # Test si utilisation temp ambiante
+                cons_amb = temp['Tint']   # Commenter manque mémoire !!!!!!
+            else:
+                cons_amb = 19.5
             cons_eau= calc_cons_eau(param_fonct[0], 19.5,  temp['Tint'], param_cons )
             if DEBUG :  print('Temp. consigne eau : ',  cons_eau)
+    
     # Controle circulateur
             etat_circ = cnt_circulateur(param_fonct[0],  temp['Tint'], s_circul, param_fonct[1] )
             if DEBUG : print('Cde circulateur : ', etat_circ)
-    # Regulation vanne 3 voie sur circuit solaire
+    
+    # Regulation vanne 3 voie sortie reservoir tampon
             reg_v.run(cons_eau,  temp['Tcuv'],  temp['Tv3v'],  t_cycle,  etat_circ)
             position=reg_v.get_pos_vanne()
             if DEBUG : print('Ouverture vanne : ',  position,  ' %')
-    # Regulation chaudiere
-            reg_c.run(cons_eau, temp['Tsch'], etat_circ,  param_chaudiere)
-            if DEBUG : print('Sortie PID chaudiere : ',  reg_c.get_outputReg())
-    # Gestion electrique  (delestage)
-            erreur = c_elec.run(reg_c.get_outputReg(),  data_cpt, t_cycle,   param_electrique)
+    
+    # Controle commande thermoplongeur
+            reg_c.run(param_fonct[1], cons_eau, temp['Tcuv'], data_cpt, t_cycle, param_thermop)
+           
     # Puissance chauffage(W),  energie cumulé en HC et HP (kWh)
             if DEBUG :
-                print('Puissance chauffe : ', c_elec.get_power(), ' W')
-                print('Energie heures creuses : ',  c_elec.get_energie() [0] / 1000,  ' kWh')
-                print('Energie heures pleines : ', c_elec.get_energie() [1] / 1000.0,  'kWh')
+                print('Puissance chauffe : ', reg_c.get_power(), ' W')
+                print('Energie heures creuses : ',  reg_c.get_energie() [0] / 1000,  ' kWh')
+                print('Energie heures pleines : ', reg_c.get_energie() [1] / 1000.0,  'kWh')
 
 # Gestion protocole Telnet, FTP, MQTT en WiFI   print (wifi, mqtt_ok)
             if etape_wifi == 0:
@@ -626,7 +591,7 @@ while True:
                         print('Connecte au serveur MQTT : ',  MQTT_server)
                         etape_wifi = 3
                     except:
-                        client.disconnect()
+                        #client.disconnect()
                         time.sleep(1)
                         wifi_etape = 1
                 
@@ -649,16 +614,17 @@ while True:
                         data_reel['CONS'] = cons_eau
                         data_reel['CIRC'] = etat_circ
                         data_reel['VANN'] = position
-                        data_reel['CHAU'] = reg_c.get_outputReg()
-                        data_reel['ELEC'] = {'PW': c_elec.get_power(), 'CHC' : c_elec.get_energie()[0] / 1000, 'CHP' : c_elec.get_energie()[ 1] / 1000}
+                        p = reg_c.get_power()
+                        phc = reg_c.get_energie()[0]/1000
+                        php = reg_c.get_energie()[1]/1000
+                        data_reel['ELEC'] = {'PW': p, 'CHC' : phc / 1000, 'CHP' : php / 1000}
                         data_reel['FNCT'] = param_fonct
                         client.publish('/regchauf/mesur',json.dumps(data_reel))
                         if DEBUG : print('Publication mesures : ',  json.dumps(data_reel))
                     except:
+                        if DEBUG : print('Publication mesures en erreur: ',  json.dumps(data_reel))
                         client.disconnect()
-                        print('MQTT publication erreur')
                         etape_wifi = 1
-                    
                 alive = not alive
                 client.publish('/regchauf/alive', bytes(str(alive), "utf8"))
 # Test si reset sur watchdog 
