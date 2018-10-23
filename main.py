@@ -72,11 +72,11 @@ NBTHERMO = const(4) # Nombre de thermometres OneWire
 # T eau fonction de T ext, Consigne ambiante et ecart consigne ambiante - T ambianteregul_chauffe.py
 # Parametres pour calcul loi d'eau lineaire par segment : 
 # (offset(°C), (t_max_zon1(°C), pente1), (t_max2(°C),_zon2 pente2), ...,Use_T_int True/False)
-param_cons = [24, (10, 0.5), (20, 0.45), (30, 0.42), (40, 0.40), False]
+param_cons = [25, (10, 0.5), (20, 0.45), (30, 0.42), (40, 0.40), False]
 
 # Parametres pour regulation vanne
 # (T cuve mini utilisable(°C), Bandemorte regul(°C), t(s) pulse+/-, t(s) attente, t(s) ouverture 0-100%)
-param_vanne = [26.0, 0.5, 5, 20, 120]
+param_vanne = [26.0, 0.5, 5, 40, 120]
 # Parametres gestion commande electrique thermoplongeur
 # (DT calcul cons en HC, DT calcul cons en HP, courant(A), tension(V) unitaire par résistance)
 param_thermop = [25.0, 3.0, 8.52,  230]
