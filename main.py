@@ -159,7 +159,7 @@ def calc_cons_eau(SetP_amb, T_amb, T_ext, params):
 def cnt_circulateur(cons_amb,  t_amb, pin_cde, marche):
     ''' Commande circulateur '''
     if marche==1 :    # Marche chauffage
-        if t_amb < (cons_amb - 0.1):
+        if t_amb < (cons_amb - 0.1) and t_amb != 0.0 :
             pin_cde(ON)
             return 1
         elif t_amb > (cons_amb + 0.1) :
@@ -332,7 +332,7 @@ class  ges_thermoplongeur(object):
         # Marche chauffage et heures creuses
         if marche and self.t_encours == 'HC..':
             # Chauffe si T cuve < Cons T eau + T acc:umulation HC
-            if t_cuve < params[0] + t_cons_eau :
+            if t_cuve < (params[0] + t_cons_eau) and t_cuve != 0.0 :
                 # Cde 3 resistances thermo suivant delestage ou non (0 a 6 kW)
                 self.nbr_toactiv = 3
             else:
@@ -343,7 +343,7 @@ class  ges_thermoplongeur(object):
             if marche :
                 # Chauffe si T cuve < Cons T eau + T accumulation HC
                 #if t_cuve < params[0] + t_cons_eau : #----------- TEST -----------
-                if t_cuve < params[1] + t_cons_eau :
+                if t_cuve < (params[1] + t_cons_eau) and t_cuve != 0 :
                     print('Consigne chauffe cuve', t_cons_eau+params[1])
                     # Cde resistances thermo suivant delestage ou non (0 a 4 kW)
                     self.nbr_toactiv = 2
@@ -552,7 +552,6 @@ while True:
         if t_lue >=4095 :                   # ds18 debranché valeur = 4095.xx
             print('Defaut capteur ou non enregistre',key )
             temp[key]=0.0
-            temp_tm1 = -10000.0
             pycom.rgbled(0xff0000)
         else:
             temp[key] = t_lue
