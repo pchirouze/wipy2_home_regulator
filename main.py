@@ -375,6 +375,19 @@ class  ges_thermoplongeur(object):
     def get_power(self):
     	''' Docstring here '''
         return self.puissance
+    
+    def daily_save(self, year, nday):
+        ''' Reset des compteurs HC et HP '''
+        self.day_counter = str(year) + ',' + str(nday) \
+        + ',' + str(self.kw_hc / 1000) \
+        + ',' + str(self.kw_hp / 1000) + '\n'
+        self.f= open('heatPower.csv', 'a+') 
+        self.f.write(self.day_counter)
+        self.f.close()
+        pycom.nvs_set('cpt_hc', 0) 
+        pycom.nvs_set('cpt_hp', 0)    
+        self.kw_hc = 0
+        self.kw_hp = 0    
 
     def get_energie(self):
     	''' Docstring here '''
@@ -700,17 +713,10 @@ while True:
 
 # Sauvegarde compteurs conso chauffage / 24h
         current_time = time.localtime()
-# RTC initialiser par le reseau et heure = 0 minute = 1
+# RTC initialiser par le reseau et heure = 0 minute = 1 ?
         if current_time[0] != 1970 and current_time[3] == 0 and current_time[4] == 1 :
             if flag == False:
-                day_counter = str(current_time[0]) + ',' + str(current_time[7]) \
-                + ',' + str(reg_c.get_energie()[0] / 1000) \
-                + ',' + str(reg_c.get_energie()[1] / 1000) + '\n'
-                f= open('heatPower.csv', 'a+') 
-                f.write(day_counter)
-                f.close()
-                pycom.nvs_set('cpt_hc',int(0)) 
-                pycom.nvs_set('cpt_hp',int(0))
+                reg_c.daily_save(current_time[0], current_time[7])
                 flag = True
         elif current_time[4] != 1 :
             flag = False
