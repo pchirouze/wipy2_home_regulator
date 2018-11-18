@@ -118,18 +118,20 @@ def edf_recv(serial):
             if car!=ETX and encours is True:
                 mes+= car
                 continue
-            elif encours is True:
+            elif encours is True and car == ETX:
 #                print('ETX')
                 mes+= car
                 encours=False
 ###                serial.readall()
                 tabl=[item.split(' ') for item in mes.decode().strip('\n\r\x02\x03').split('\r\n')]
-                dic=dict([[item[0], item[1]] for item in tabl])
-                lock.acquire()
-                dic_edf=dic.copy()
-                new_lec=True
-                lock.release()
-# time.sleep(0.2)
+                try:
+                    dic=dict([[item[0], item[1]] for item in tabl])
+                    lock.acquire()
+                    dic_edf=dic.copy()
+                    new_lec=True
+                    lock.release()
+                except:
+                    print("Erreur thread lec EDF: ", dict, tabl)
                 machine.idle()
 #
 # Calcul consigne température chauffage (loi d'eau lineaire par segment)
@@ -560,7 +562,7 @@ while True:
         idt= thermometres[key].to_bytes(8,'little')
         ds.start_convertion(idt)
         time.sleep(0.8)
-        t_lue = ds.read_temp_async(idt)/100.0
+        t_lue = ds.read_temp_async(idt)
         #print (t_lue)
         if t_lue >=4095 :                   # ds18 debranché valeur = 4095.xx
             print('Defaut capteur ou non enregistre',key )
@@ -625,7 +627,7 @@ while True:
                     for r in lswifi:
     # freebox et signal > -80 dB
                         if DEBUG: print(r)
-                        if r[0] == SSID and r[4] > -80 :
+                        if r[0] == SSID and r[4] > -87 :
     #                        wlan.ifconfig(config=('192.168.0.30', '255.255.255.0', '192.168.0.254', '212.27.40.240'))
                             wlan.ifconfig(config='dhcp')
                             wlan.connect(SSID, auth=(WLAN.WPA2, PWID), timeout=50)

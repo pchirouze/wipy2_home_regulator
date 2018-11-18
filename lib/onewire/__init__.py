@@ -213,7 +213,10 @@ class DS18X20(object):
             temp = 100 * temp_read - 25 + (count_per_c - count_remain) // count_per_c
             return temp
         elif rom0 == 0x28:
-            return (temp_msb << 8 | temp_lsb) * 100 // 16
+            if (temp_msb & 0xF8) == 0xF8 : # Valeur négative de T
+                return (temp_msb << 8 | temp_lsb) / 16 - 0x1000
+            else :
+                return (temp_msb << 8 | temp_lsb) / 16
         else:
             assert False
 
