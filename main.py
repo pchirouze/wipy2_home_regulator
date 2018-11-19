@@ -79,7 +79,7 @@ param_cons = [25, (10, 0.45), (20, 0.42), (30, 0.40), (40, 0.39), False]
 param_vanne = [26.0, 1.0, 2, 180, 120]
 # Parametres gestion commande electrique thermoplongeur
 # (DT calcul cons en HC, DT calcul cons en HP, Resistance unitaire (Ohms), tension(V) unitaire par résistance)
-param_thermop = [30.0, 3.0, 27.0, 218]
+param_thermop = [30.0, 3.0, 26.0, 225]
 # Parametres de fonctionnement
 # (Consigne T amb,(°C), Marche(1) Arret(0) chauffage)
 param_fonct = [20.0, 1]
@@ -161,10 +161,10 @@ def calc_cons_eau(SetP_amb, T_amb, T_ext, params):
 def cnt_circulateur(cons_amb,  t_amb, pin_cde, marche):
     ''' Commande circulateur '''
     if marche==1 :    # Marche chauffage
-        if t_amb < (cons_amb - 0.1) and t_amb != 0.0 :
+        if t_amb < (cons_amb) and t_amb != 0.0 :
             pin_cde(ON)
             return 1
-        elif t_amb > (cons_amb + 0.1) :
+        elif t_amb > (cons_amb) :
             pin_cde(OFF)
         return 0            
     else :          
@@ -717,7 +717,7 @@ while True:
         current_time = time.localtime()
 # RTC initialiser par le reseau et heure = 0 minute = 1 ?
         if current_time[0] != 1970 and current_time[3] == 0 and current_time[4] == 1 :
-            if flag == False:
+            if param_fonct[1] == 1 and flag == False:  # Marche chauffage et oneshot 
                 reg_c.daily_save(current_time[0], current_time[7])
                 flag = True
         elif current_time[4] != 1 :
