@@ -4,3 +4,4 @@ pymakr.conf
 *.json
 .Programmes test
 pymakr.conf
+*.csv
