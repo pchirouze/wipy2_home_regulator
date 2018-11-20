@@ -716,7 +716,7 @@ while True:
 # Sauvegarde compteurs conso chauffage / 24h
         current_time = time.localtime()
 # RTC initialiser par le reseau et heure = 0 minute = 1 ?
-        if current_time[0] != 1970 and current_time[3] == 0 and current_time[4] == 1 :
+        if current_time[0] != 1970 and current_time[3] == 23 and current_time[4] == 59 :
             if param_fonct[1] == 1 and flag == False:  # Marche chauffage et oneshot 
                 reg_c.daily_save(current_time[0], current_time[7])
                 flag = True
