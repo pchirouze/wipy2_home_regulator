@@ -339,7 +339,7 @@ class  ges_thermoplongeur(object):
                 self.nbr_toactiv = 3
             else:
                 self.nbr_toactiv = 0   
-                self.nbr_activ = 0
+                # self.nbr_activ = 0
         # Marche et heures pleines
         else :
             if marche :
@@ -352,16 +352,17 @@ class  ges_thermoplongeur(object):
                 else:
                     # Reset cde resistance thermoplongeurs   
                     self.nbr_toactiv = 0   
-                    self.nbr_activ = 0
+                    # self.nbr_activ = 0
             else:
                 # Resistances OFF
                 self.nbr_toactiv = 0
-                self.nbr_activ = 0
-        # Appel fonction pilotage sortie commande et gestion delestage        
+                # self.nbr_activ = 0
+        # Appel fonction pilotage sortie commande et gestion delestage 
+        if DEBUG : print(self.nbr_toactiv, ' ', self.nbr_activ)       
         self.nbr_activ = self._delestage(self.nbr_toactiv, self.nbr_activ,self.Idispo, param_thermop[2])
         # Gestion comptage puissance chauffage
-        self.current_theori = self.nbr_activ * (params[3] / params[2]) 
-        if self.iinst > self.current_theori :  # Verifie que les resistances sont effectivement commandés
+        self.current_theori = self.nbr_activ * (params[3] / params[2])  
+        if self.iinst > self.current_theori - 2:  # Verifie que les resistances sont effectivement commandés
             self.puissance = self.current_theori * params[3] # Puissance en Watts
         else :
             self.puissance = 0
