@@ -193,7 +193,12 @@ class DS18X20(object):
         ow.select_rom(rom)
         ow.write_byte(0xbe)  # Read scratch
         data = ow.read_bytes(9)
-        return self.convert_temp(rom[0], data)
+        crcc = ow.crc8(data[:8])
+        # print('crc calcule : ', crcc, 'crc transmis : ', data[8] )
+        if crcc == data[8]:
+            return self.convert_temp(rom[0], data)
+        else :
+            return None
 
     def convert_temp(self, rom0, data):
         """
