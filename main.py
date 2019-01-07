@@ -76,7 +76,7 @@ param_cons = [25, (10, 0.45), (20, 0.42), (30, 0.40), (40, 0.39), False]
 
 # Parametres pour regulation vanne
 # (T cuve mini utilisable(°C), Bandemorte regul(°C), t(s) pulse+/-, t(s) attente, t(s) ouverture 0-100%)
-param_vanne = [26.0, 1.0, 2, 180, 120]
+param_vanne = [26.0, 0.5, 2, 130, 120]
 # Parametres gestion commande electrique thermoplongeur
 # (DT calcul cons en HC, DT calcul cons en HP, Resistance unitaire (Ohms), tension(V) unitaire par résistance)
 param_thermop = [30.0, 3.0, 26.0, 225]
@@ -107,32 +107,34 @@ def edf_recv(serial):
     global dic_edf, new_lec
     encours = False
     while True:
-        while serial.any() > 0:
-            car=serial.read(1)
-    #       print(car)
-            if car==STX:
-#                print('STX')
-                mes = car
-                encours=True
-                continue
-            if car!=ETX and encours is True:
-                mes+= car
-                continue
-            elif encours is True and car == ETX:
-#                print('ETX')
-                mes+= car
-                encours=False
-###                serial.readall()
-                tabl=[item.split(' ') for item in mes.decode().strip('\n\r\x02\x03').split('\r\n')]
-                try:
+        try:
+            while serial.any() > 0:
+                car=serial.read(1)
+        #       print(car)
+                if car==STX:
+    #                print('STX')
+                    mes = car
+                    encours=True
+                    continue
+                if car!=ETX and encours is True:
+                    mes+= car
+                    continue
+                elif encours is True and car == ETX:
+    #                print('ETX')
+                    mes+= car
+                    encours=False
+    ###                serial.readall()
+                    tabl=[item.split(' ') for item in mes.decode().strip('\n\r\x02\x03').split('\r\n')]
                     dic=dict([[item[0], item[1]] for item in tabl])
                     lock.acquire()
                     dic_edf=dic.copy()
                     new_lec=True
                     lock.release()
-                except:
-                    print("Erreur thread lec EDF: ", dict, tabl)
-                machine.idle()
+                    machine.idle()
+        except:
+            print("Erreur thread lec EDF: ", dict, tabl)
+            machine.reset()
+
 #
 # Calcul consigne température chauffage (loi d'eau lineaire par segment)
 #
