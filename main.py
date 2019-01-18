@@ -131,8 +131,12 @@ def edf_recv(serial):
                     new_lec=True
                     lock.release()
                     machine.idle()
-        except:
-            print("Erreur thread lec EDF: ", dict, tabl)
+        except Exception as e :
+            txtlog = 'Erreur thread EDF: ' + str(time.localtime()) + ' : ' +  e  + '\n'
+            f=open('log.txt','a+') 
+            f.write(txtlog)
+            f.close()
+            #print("Erreur thread lec EDF: ", dict, tabl)
             machine.reset()
 
 #
@@ -587,10 +591,11 @@ while True:
                 data_cpt=dic_edf.copy()
                 cpt_err_edf = 0
             else:
+                pycom.rgbled(0x0000ff)
                 cpt_err_edf += 1
                 if cpt_err_edf > 3 :
                     print('Defaut lecture teleinfo EDF')
-                    pycom.rgbled(0x0000ff)
+                    machine.reset()
             new_lec=False
             lock.release()
             if DEBUG :        print('Compteur EDF : ',  data_cpt)
@@ -712,7 +717,7 @@ while True:
             # if SIMU == 1:  ser.write(trame_edf)
             #--------------------------------------------------------------
             pycom.rgbled(0x000000)              # Eteint LED
-            time.sleep(0.7)
+            time.sleep(1.0)
             # Calcul temps de cycle (ms)
             t_cycle=time.ticks_diff(start_t, time.ticks_ms())
             machine.idle()
