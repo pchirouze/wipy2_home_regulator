@@ -241,6 +241,8 @@ class regul_vanne(object):
                     else:
                         self.position = 0.0
                     self.etape = 3
+            else:
+                self.etape = 0
         
         # Gestion durée pulse +/-
         if self.etape == 3:         # Gestion durée pulse +/- de correction
@@ -262,8 +264,8 @@ class regul_vanne(object):
                 if self.first_pos == True :
                     self.etape = 1
                     self.first_pos = False
-                else:
-                    self.etape = 2
+                elif circulateur == 1:
+                    self.etape = 2              # si circulateur off reste en étape 4
 
     def get_pos_vanne(self):
         ''' Get position vanne regulation '''
