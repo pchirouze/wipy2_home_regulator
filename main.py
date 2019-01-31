@@ -104,40 +104,32 @@ MQTT_server = 'm23.cloudmqtt.com'
 # Thread reception téléinformation compteur EDF
 def edf_recv(serial):
     ''' Docstring de la fonction '''
-    global dic_edf, new_lec
     encours = False
-    while True:
-        try:
-            while serial.any() > 0:
-                car=serial.read(1)
-        #       print(car)
-                if car==STX:
-    #                print('STX')
-                    mes = car
-                    encours=True
-                    continue
-                if car!=ETX and encours is True:
-                    mes+= car
-                    continue
-                elif encours is True and car == ETX:
-    #                print('ETX')
-                    mes+= car
-                    encours=False
-    ###                serial.readall()
-                    tabl=[item.split(' ') for item in mes.decode().strip('\n\r\x02\x03').split('\r\n')]
-                    dic=dict([[item[0], item[1]] for item in tabl])
-                    lock.acquire()
-                    dic_edf=dic.copy()
-                    new_lec=True
-                    lock.release()
-                    machine.idle()
-        except Exception as e :
-            txtlog = 'Erreur thread EDF: ' + str(time.localtime()) + ' : ' +  e  + '\n'
-            f=open('log.txt','a+') 
-            f.write(txtlog)
-            f.close()
-            #print("Erreur thread lec EDF: ", dict, tabl)
-            machine.reset()
+    try:
+        while serial.any() > 0:
+            car=serial.read(1)
+            if car==STX:
+                mes = car
+                encours=True
+                continue
+            if car!=ETX and encours is True:
+                mes+= car
+                continue
+            elif encours is True and car == ETX:
+                mes+= car
+                encours=False
+                tabl=[item.split(' ') for item in mes.decode().strip('\n\r\x02\x03').split('\r\n')]
+                dic=dict([[item[0], item[1]] for item in tabl])
+                return dic
+
+    except Exception as e :
+        txtlog = 'Erreur thread EDF: ' + str(time.localtime()) + ' : ' +  e  + '\n'
+        f=open('log.txt','a+') 
+        f.write(txtlog)
+        f.close()
+        #print("Erreur thread lec EDF: ", dict, tabl)
+        return None
+#        machine.reset()
 
 #
 # Calcul consigne température chauffage (loi d'eau lineaire par segment)
@@ -523,13 +515,9 @@ def lecture_fichiers():
 ds=onewire.DS18X20(onewire.OneWire(Pin(p_bus_ow)))
 ser=UART(1)         # Init Uart 1 pour liaison compteur electrique EDF
 ser.init(1200, bits=7,  parity=ser.EVEN, stop=1)
-lock=_thread.allocate_lock()
-task_recv =_thread.start_new_thread(edf_recv, (ser,))
-new_lec=False
 mes=b''
 temp={}
 dev = ds.roms       # identification des capteurs DS18X20 raccordés
-dic_edf={}
 i=0
 all_th = False
 t_cycle= 0
@@ -588,18 +576,15 @@ while True:
         if all_th :
             if DEBUG :    print('Temperatures : ',  temp)
 # Recupere données compteur EDF
-            lock.acquire()
-            if new_lec:
-                data_cpt=dic_edf.copy()
-                cpt_err_edf = 0
+            val = edf_recv(ser)
+            if val != None:
+                data_cpt = val
             else:
                 pycom.rgbled(0x0000ff)
                 cpt_err_edf += 1
                 if cpt_err_edf > 3 :
                     print('Defaut lecture teleinfo EDF')
                     machine.reset()
-            new_lec=False
-            lock.release()
             if DEBUG :        print('Compteur EDF : ',  data_cpt)
     
     # Calcul consigne  temp eau chauffage
