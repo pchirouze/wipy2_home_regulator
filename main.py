@@ -123,7 +123,7 @@ def edf_recv(serial):
                 return dic
 
     except Exception as e :
-        txtlog = 'Erreur thread EDF: ' + str(time.localtime()) + ' : ' +  e  + '\n'
+        #txtlog = 'Erreur thread EDF: ' + str(time.localtime()) + ' : ' +  e  + '\n'
         f=open('log.txt','a+') 
         f.write(txtlog)
         f.close()
