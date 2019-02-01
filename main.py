@@ -719,10 +719,10 @@ while True:
             # if SIMU == 1:  ser.write(trame_edf)
             #--------------------------------------------------------------
             pycom.rgbled(0x000000)              # Eteint LED
-            time.sleep(1.0)
+            time.sleep(1.2)
             # Calcul temps de cycle (ms)
             t_cycle=time.ticks_diff(start_t, time.ticks_ms())
-            machine.idle()
+#            machine.idle()
             if DEBUG : print ('Temps de cycle : ', t_cycle,  ' ms')
 
 # Sauvegarde compteurs conso chauffage / 24h
