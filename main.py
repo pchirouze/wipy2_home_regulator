@@ -76,13 +76,13 @@ param_cons = [25, (10, 0.45), (20, 0.42), (30, 0.40), (40, 0.39), False]
 
 # Parametres pour regulation vanne
 # (T cuve mini utilisable(°C), Bandemorte regul(°C), t(s) pulse+/-, t(s) attente, t(s) ouverture 0-100%)
-param_vanne = [26.0, 0.5, 2, 130, 120]
+param_vanne = [26.0, 0.5, 3, 100, 120]
 # Parametres gestion commande electrique thermoplongeur
 # (DT calcul cons en HC, DT calcul cons en HP, Resistance unitaire (Ohms), tension(V) unitaire par résistance)
-param_thermop = [30.0, 3.0, 26.0, 225]
+param_thermop = [25.0, 3.0, 26.0, 225]
 # Parametres de fonctionnement
 # (Consigne T amb,(°C), Marche(1) Arret(0) chauffage)
-param_fonct = [20.0, 1]
+param_fonct = [19.5, 1]
 # -------------------------  Definitions ports entrées et sorties
 p_circu = 'P19'                 # Cde circulateur
 p_v3v_p = 'P20'                 # Cde + vanne 3 voies
@@ -356,7 +356,7 @@ class  ges_thermoplongeur(object):
                 if t_cuve < (params[1] + t_cons_eau) and t_cuve != 0 :
                     print('Consigne chauffe cuve', t_cons_eau+params[1])
                     # Cde resistances thermo suivant delestage ou non (0 a 4 kW)
-                    self.nbr_toactiv = 2
+                    self.nbr_toactiv = 3
                 else:
                     # Reset cde resistance thermoplongeurs   
                     self.nbr_toactiv = 0   
