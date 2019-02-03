@@ -79,7 +79,7 @@ param_cons = [25, (10, 0.45), (20, 0.42), (30, 0.40), (40, 0.39), False]
 param_vanne = [26.0, 0.5, 3, 100, 120]
 # Parametres gestion commande electrique thermoplongeur
 # (DT calcul cons en HC, DT calcul cons en HP, Resistance unitaire (Ohms), tension(V) unitaire par résistance)
-param_thermop = [25.0, 3.0, 26.0, 225]
+param_thermop = [25.0, 6.0, 26.0, 225]
 # Parametres de fonctionnement
 # (Consigne T amb,(°C), Marche(1) Arret(0) chauffage)
 param_fonct = [19.5, 1]
