@@ -214,7 +214,7 @@ class regul_vanne(object):
             self.first_pos = True
 
         # Compense l'offset mecanique de la vanne pour optimisation temps
-        if self.etape == 1:
+        if self.etape == 1 and circulateur == 1:
             self.tempo = 12000  # pour 12s = 10 % d'offset
             self.pin_p(ON)          # active actionneur
             self.position = 10.0     # % ouverture vanne
