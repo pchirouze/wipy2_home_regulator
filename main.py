@@ -20,7 +20,7 @@ Regulation chauffage eau plancher chauffant
         Regulation par PID et pilotage de 4 résistances de 1.6 kW
     * Commande circulateur
 ----------------------------------------------------------------------------------------------- '''
-
+# Essai ajout ligne
 import json
 import sys
 import time
@@ -100,6 +100,9 @@ SSID='freebox_PC'
 PWID='parapente'
 #MQTT_server="iot.eclipse.org"
 MQTT_server = 'm23.cloudmqtt.com'
+MQTT_PORT = 15201
+MQTT_USER = 'ixkefaip'
+MQTT_PASSW = 'Hf-lHiOHlb_p'
 
 # Thread reception téléinformation compteur EDF
 def edf_recv(serial):
@@ -214,6 +217,7 @@ class regul_vanne(object):
             self.first_pos = True
 
         # Compense l'offset mecanique de la vanne pour optimisation temps
+
         if self.etape == 1 and circulateur == 1:
             self.tempo = 12000  # pour 12s = 10 % d'offset
             self.pin_p(ON)          # active actionneur
@@ -659,7 +663,7 @@ while True:
                     print('Wifi not connected')
             
             if etape_wifi == 2:        
-                    client =MQTTClient("chauffage",MQTT_server, port = 1883, keepalive=100)
+                    client =MQTTClient("chauffage",MQTT_server, MQTT_PORT, MQTT_USER, MQTT_PASSW, keepalive=100)
                     try:
                         client.connect(clean_session=True)
                         client.set_callback(incoming_mess)
