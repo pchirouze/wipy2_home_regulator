@@ -1,4 +1,8 @@
 {
-    "python.pythonPath": "/usr/bin/python",
-    "terminal.integrated.cursorBlinking": true
+    "python.linting.enabled": true,
+    "python.autoComplete.extraPaths": [],
+    "python.autoComplete.typeshedPaths": [],
+    "python.analysis.typeshedPaths": [],
+    "python.linting.pylintEnabled": true,
+    "githubPullRequests.remotes": []
 }
