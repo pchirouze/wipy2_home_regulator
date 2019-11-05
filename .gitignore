@@ -5,3 +5,4 @@ pymakr.conf
 .Programmes test
 pymakr.conf
 *.csv
+.micropy
