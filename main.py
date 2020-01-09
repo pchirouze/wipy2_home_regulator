@@ -291,12 +291,14 @@ class  ges_thermoplongeur(object):
 # Recupere compteur dans NVRAM si existe, sinon les creent
         self.kw_hc = 0.0
         self.kw_hp = 0.0
-        if pycom.nvs_get('cpt_hc') == None:
-            pycom.nvs_set('cpt_hc',0)
-            pycom.nvs_set('cpt_hp',0)
-        else:
+        try:
             self.kw_hc = float(pycom.nvs_get('cpt_hc'))
+        except:
+            pycom.nvs_set('cpt_hc',0)
+        try:
             self.kw_hp = float(pycom.nvs_get('cpt_hp'))
+        except:
+            pycom.nvs_set('cpt_hp',0)    
         self.puissance = 0.0
 
 # Fonction gestion pilotage résistance thermoplongeur et delestage
@@ -507,7 +509,6 @@ def lecture_fichiers():
         print('Erreur lecture fichier thermo.dat')
         thermometres = {}
         dev = ds.roms
-        ## sys.exit()
         if len(dev) == NBTHERMO:
     # Affectation des thermometres et enregistrement (converti ID en int: bug bytearray en json)
             for i,idn in enumerate(dev):
@@ -517,6 +518,7 @@ def lecture_fichiers():
             f.write(json.dumps(thermometres))
         else:
             print('Seulement ', len(dev), 'thermometres detectés sur ', NBTHERMO )
+            time.sleep(5.0)
             machine.reset()
     finally:
         f.close()
