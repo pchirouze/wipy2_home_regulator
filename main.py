@@ -646,8 +646,8 @@ while True:
     # freebox et signal > -80 dB
                         if DEBUG: print(r)
                         if r[0] == SSID and r[4] > -87 :
-    #                        wlan.ifconfig(config=('192.168.0.30', '255.255.255.0', '192.168.0.254', '212.27.40.240'))
-                            wlan.ifconfig(config='dhcp')
+                            wlan.ifconfig(config=('192.168.0.32', '255.255.255.0', '192.168.0.254', '212.27.40.240'))
+    #                        wlan.ifconfig(config='dhcp')
                             wlan.connect(SSID, auth=(WLAN.WPA2, PWID), timeout=50)
                             time.sleep(2)
                             etape_wifi = 1
