@@ -201,7 +201,7 @@ class regul_vanne(object):
         self.tempo = 0
         self.first_pos = False
 
-    def run(self, t_cons_eau, t_cuve, t_sortie_vanne, t_cycl, circulateur):
+    def run(self, t_cons_eau, t_cuve, t_sortie_vanne, t_cycl, circulateur, chauffage_on):
         ''' Active la régulation de la vanne '''
         if DEBUG :
             print('Etape cde vanne : ',  self.etape,  'Tempo',  self.tempo)
@@ -270,6 +270,8 @@ class regul_vanne(object):
                     self.first_pos = False
                 elif circulateur == 1:
                     self.etape = 2              # si circulateur off reste en étape 4
+            if chauffage_on == 0:
+                self.etape = 0
 
     def get_pos_vanne(self):
         ''' Get position vanne regulation '''
@@ -559,7 +561,7 @@ all_t_read = 0
 
 # Init watchdog
 if WATCH_DOG :
-    wdog = WDT(timeout=20000)
+    wdog = WDT(timeout=25000)
     on_time = False
 
 for key in thermometres :
@@ -617,7 +619,7 @@ while True:
             if DEBUG : print('Cde circulateur : ', etat_circ)
     
     # Regulation vanne 3 voie sortie reservoir tampon
-            reg_v.run(cons_eau,  temp['Tcuv'],  temp['Tv3v'],  t_cycle,  etat_circ)
+            reg_v.run(cons_eau,  temp['Tcuv'],  temp['Tv3v'],  t_cycle,  etat_circ, param_fonct[1])
             position=reg_v.get_pos_vanne()
             if DEBUG : print('Ouverture vanne : ',  position,  ' %')
     
@@ -646,6 +648,7 @@ while True:
     # freebox et signal > -80 dB
                         if DEBUG: print(r)
                         if r[0] == SSID and r[4] > -87 :
+                            print("Init Wifi")
                             wlan.ifconfig(config=('192.168.0.32', '255.255.255.0', '192.168.0.254', '212.27.40.240'))
     #                        wlan.ifconfig(config='dhcp')
                             wlan.connect(SSID, auth=(WLAN.WPA2, PWID), timeout=50)
