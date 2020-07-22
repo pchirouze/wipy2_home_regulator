@@ -95,14 +95,21 @@ p_R4 = 'P8'                     # Cde resistance R4
 p_hc = 'P9'                     # Heures creuses
 
 T_NOM_TH =['Text', 'Tint', 'Tcuv', 'Tv3v'] # Si changement DS18 modifié fichier thermo.dat
-# WIFI ID , PWD, MQTT broker
+
+# WIFI connexion data, ID , PWD
+WIFI_C = ('192.168.0.52', '255.255.255.0', '192.168.0.254', '212.27.40.240')
 SSID='freebox_PC'
 PWID='parapente'
-#MQTT_server="iot.eclipse.org"
-MQTT_server = 'm23.cloudmqtt.com'
-MQTT_PORT = 15201
-MQTT_USER = 'ixkefaip'
-MQTT_PASSW = 'Hf-lHiOHlb_p'
+# Broker MQTT Mosquitto sur Raspberry PI 4 sur reseau local IP forcé par configuration routeur freebox
+MQTT_server = "192.168.0.41"         
+MQTT_PORT = 1883
+MQTT_USER =''
+MQTT_PASSW = ''
+# Broker cloudmqtt.com version payante depuis 30/04/2020 (5$/mois)
+#MQTT_server = 'm23.cloudmqtt.com'  
+#MQTT_PORT = 15201
+#MQTT_USER = 'ixkefaip'
+#MQTT_PASSW = 'Hf-lHiOHlb_p'
 
 # Thread reception téléinformation compteur EDF
 def edf_recv(serial):
@@ -635,25 +642,21 @@ while True:
 # Gestion protocole Telnet, FTP, MQTT en WiFI   print (wifi, mqtt_ok)
             if etape_wifi == 0:
                 lswifi=[]
-                wlan=WLAN(mode=WLAN.STA,antenna=WLAN.INT_ANT)
-                lswifi=wlan.scan()
-                if lswifi==[]:
-                    #wlan.disconnect()
-                    #wlan.init(mode=WLAN.AP, ssid='WIPY-PC', auth=(WLAN.WPA2, 'password'),channel=6,antenna=WLAN.INT_ANT)                    
-                    #print('WIFI Connecté en mode point accès SSID : WIPY_PC')
-                    #etape_wifi = 3
-                    time.sleep(0.5)
-                else:
-                    for r in lswifi:
-    # freebox et signal > -80 dB
-                        if DEBUG: print(r)
-                        if r[0] == SSID and r[4] > -87 :
-                            print("Init Wifi")
-                            wlan.ifconfig(config=('192.168.0.32', '255.255.255.0', '192.168.0.254', '212.27.40.240'))
-    #                        wlan.ifconfig(config='dhcp')
-                            wlan.connect(SSID, auth=(WLAN.WPA2, PWID), timeout=50)
-                            time.sleep(2)
-                            etape_wifi = 1
+                wlan=WLAN(mode=WLAN.STA,antenna=WLAN.EXT_ANT)
+                try:
+                    lswifi=wlan.scan()
+                except:
+                    print('Pas de reseau WIFI')
+                for r in lswifi:
+# freebox et signal > -80 dB
+                    if DEBUG: print(r)
+                    if r[0] == SSID and r[4] > -87 :
+                        wlan.ifconfig(config = ('192.168.0.52', '255.255.255.0', '192.168.0.254', '212.27.40.240'))
+#                        wlan.ifconfig(config='dhcp')
+                        wlan.connect(SSID, auth=(WLAN.WPA2, PWID), timeout=50)
+                        print('Connexion ?')
+                        time.sleep(2)       # Indispensable
+                        etape_wifi = 1
  
 # Creation et initialisation protocole MQTT 
             if etape_wifi == 1:
@@ -668,19 +671,20 @@ while True:
                     print('Wifi not connected')
             
             if etape_wifi == 2:        
-                    client =MQTTClient("chauffage",MQTT_server, MQTT_PORT, MQTT_USER, MQTT_PASSW, keepalive=100)
                     try:
-                        client.connect(clean_session=True)
+                        client =MQTTClient("chauffage",MQTT_server, MQTT_PORT, MQTT_USER, MQTT_PASSW)
                         client.set_callback(incoming_mess)
+                        client.connect(clean_session=True)
                         client.subscribe('/regchauf/cde', qos= 0)
                         client.subscribe('/regchauf/send', qos= 0)
                         client.subscribe('/regchauf/cons', qos= 0)
-                        print('Connecte au serveur MQTT : ',  MQTT_server)
+                        print('Connected au serveur MQTT : ',  MQTT_server)
                         etape_wifi = 3
                     except:
                         #client.disconnect()
+                        print ('Erreur connexion au seveur MQTT', MQTT_server)
                         time.sleep(1)
-                        wifi_etape = 1
+#                        wifi_etape = 1
                 
 # WIFI et MQTT Ok 
             if etape_wifi == 3:
@@ -728,7 +732,7 @@ while True:
             # if SIMU == 1:  ser.write(trame_edf)
             #--------------------------------------------------------------
             pycom.rgbled(0x000000)              # Eteint LED
-            time.sleep(1.2)
+            time.sleep(1.1)
             # Calcul temps de cycle (ms)
             t_cycle=time.ticks_diff(start_t, time.ticks_ms())
 #            machine.idle()
