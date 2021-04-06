@@ -147,7 +147,7 @@ def edf_recv(serial):
             f.write(txtlog)
             f.close()
             #print("Erreur thread lec EDF: ", dict, tabl)
-            machine.reset()
+            #machine.reset()
 
 #
 # Calcul consigne température chauffage (loi d'eau lineaire par segment)
@@ -528,7 +528,7 @@ def lecture_fichiers():
         else:
             print('Seulement ', len(dev), 'thermometres detectés sur ', NBTHERMO )
             time.sleep(5.0)
-            machine.reset()
+            machine.reset()  
     finally:
         f.close()
 
@@ -569,7 +569,7 @@ all_t_read = 0
 # Init watchdog
 if WATCH_DOG :
     wdog = WDT(timeout=25000)
-    on_time = False
+on_time = False
 
 for key in thermometres :
     temp_tm1[key] = -10000.0    # Pour temperature impossible (i nit)
@@ -612,7 +612,7 @@ while True:
                 cpt_err_edf += 1
                 if cpt_err_edf > 3 :
                     print('Defaut lecture teleinfo EDF')
-                    machine.reset()
+                    #machine.reset() 
             new_lec=False
             lock.release()
             if DEBUG :        print('Compteur EDF : ',  data_cpt)
