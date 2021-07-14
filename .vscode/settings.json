@@ -4,5 +4,6 @@
     "python.autoComplete.typeshedPaths": [],
     "python.analysis.typeshedPaths": [],
     "python.linting.pylintEnabled": true,
-    "githubPullRequests.remotes": []
+    "githubPullRequests.remotes": [],
+    "python.analysis.extraPaths": []
 }
