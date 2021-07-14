@@ -6,3 +6,4 @@ pymakr.conf
 pymakr.conf
 *.csv
 .micropy
+.vscode/settings.json
