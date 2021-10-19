@@ -72,7 +72,7 @@ NBTHERMO = const(4) # Nombre de thermometres OneWire
 # T eau fonction de T ext, Consigne ambiante et ecart consigne ambiante - T ambianteregul_chauffe.py
 # Parametres pour calcul loi d'eau lineaire par segment : 
 # (offset(°C), (t_max_zon1(°C), pente1), (t_max2(°C),_zon2 pente2), ...,Use_T_int True/False)
-param_cons = [25, (10, 0.45), (20, 0.42), (30, 0.40), (40, 0.39), False]
+param_cons = [25, (10, 0.45), (20, 0.42), (30, 0.40), (40, 0.39), True]
 
 # Parametres pour regulation vanne
 # (T cuve mini utilisable(°C), Bandemorte regul(°C), t(s) pulse+/-, t(s) attente, t(s) ouverture 0-100%)
@@ -81,7 +81,9 @@ param_vanne = [26.0, 0.5, 3, 100, 120]
 # (DT calcul cons en HC, DT calcul cons en HP, Resistance unitaire (Ohms), tension(V) unitaire par résistance)
 param_thermop = [25.0, 6.0, 26.0, 225]
 # Parametres de fonctionnement
-# (Consigne T amb,(°C), Marche(1) Arret(0) chauffage)
+# (Consigne T amb,(°C), Marche=2 : Circulateur en continu, Marche = 1 : Circulateur controlé par temp ambiante,
+# Marche = 0 : Arret chauffage)
+
 param_fonct = [19.5, 1]
 # -------------------------  Definitions ports entrées et sorties
 p_circu = 'P19'                 # Cde circulateur
@@ -156,9 +158,9 @@ def calc_cons_eau(SetP_amb, T_amb, T_ext, params):
     ''' Calcul consigne T eau (loi d'eau linéaire par segment) '''
     # Test si configuration utilisation ou non temperature interieur
     if params[5] == True :
-        ecart_t=SetP_amb - T_ext + (SetP_amb - T_amb)   
+        ecart_t = SetP_amb - T_ext + (SetP_amb - T_amb)   
     else : 
-        ecart_t=SetP_amb - T_ext
+        ecart_t = SetP_amb - T_ext
     cons=params[0]
     v=0
     for i in range(len(params)-1):
@@ -176,14 +178,17 @@ def calc_cons_eau(SetP_amb, T_amb, T_ext, params):
 #
 def cnt_circulateur(cons_amb,  t_amb, pin_cde, marche):
     ''' Commande circulateur '''
-    if marche==1 :    # Marche chauffage
+    if marche == 1 :    # Marche chauffage
         if t_amb < (cons_amb) and t_amb != 0.0 :
             pin_cde(ON)
-            return 1
+            return 1        # Etat circulateur
         elif t_amb > (cons_amb) :
             pin_cde(OFF)
-        return 0            
-    else :          
+            return 0            
+    elif marche == 2 :      # Marche chauffage avec circulateur actif en permanence
+        pin_cde(ON)         
+        return 1            # Etat circulateur
+    else:    
         pin_cde(OFF)
         return 0
 #
@@ -355,7 +360,7 @@ class  ges_thermoplongeur(object):
    
 # Controle chauffage par thermoplongeur
         # Marche chauffage et heures creuses
-        if marche and self.t_encours == 'HC..':
+        if marche >= 1 and self.t_encours == 'HC..':
             # Chauffe si T cuve < Cons T eau + T acc:umulation HC
             if t_cuve < (params[0] + t_cons_eau) and t_cuve != 0.0 :
                 # Cde 3 resistances thermo suivant delestage ou non (0 a 6 kW)
@@ -365,7 +370,7 @@ class  ges_thermoplongeur(object):
                 # self.nbr_activ = 0
         # Marche et heures pleines
         else :
-            if marche :
+            if marche >= 1:
                 # Chauffe si T cuve < Cons T eau + T accumulation HC
                 #if t_cuve < params[0] + t_cons_eau : #----------- TEST -----------
                 if t_cuve < (params[1] + t_cons_eau) and t_cuve != 0 :
@@ -435,8 +440,13 @@ def incoming_mess(topic, msg):
         if topic== b'/regchauf/send' and msg == b'stop':
             mes_send = False
             return
-        if topic==b'/regchauf/cde' and msg == b'1':
-            param_fonct[1] = 1
+        if topic==b'/regchauf/cde' and msg == b'1': 
+            param_fonct[1] = 1              # Regule avec T ext et T amb.
+            f=open('p_fonct.dat', 'w')
+            f.write(json.dumps(param_fonct))
+            f.close()        
+        if topic==b'/regchauf/cde' and msg == b'2':
+            param_fonct[1] = 2              # Régule avec T ext seul (pas d'arrêt circilateur)       
             f=open('p_fonct.dat', 'w')
             f.write(json.dumps(param_fonct))
             f.close()
@@ -666,6 +676,7 @@ while True:
                     #rtc.ntp_sync("pool.ntp.org")
                     rtc.ntp_sync("ntp.midway.ovh")
                     time.timezone(3600)
+                    print(time.localtime())
                     etape_wifi = 2
                 else:
                     print('Wifi not connected')
