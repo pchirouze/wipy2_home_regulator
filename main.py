@@ -77,14 +77,16 @@ param_cons = [25, (10, 0.45), (20, 0.42), (30, 0.40), (40, 0.39), True]
 # Parametres pour regulation vanne
 # (T cuve mini utilisable(°C), Bandemorte regul(°C), t(s) pulse+/-, t(s) attente, t(s) ouverture 0-100%)
 param_vanne = [26.0, 0.5, 3, 100, 120]
+
 # Parametres gestion commande electrique thermoplongeur
 # (DT calcul cons en HC, DT calcul cons en HP, Resistance unitaire (Ohms), tension(V) unitaire par résistance)
 param_thermop = [25.0, 6.0, 26.0, 225]
+
 # Parametres de fonctionnement
 # (Consigne T amb,(°C), Marche=2 : Circulateur en continu, Marche = 1 : Circulateur controlé par temp ambiante,
 # Marche = 0 : Arret chauffage)
+param_fonct = [19.5, 0]
 
-param_fonct = [19.5, 1]
 # -------------------------  Definitions ports entrées et sorties
 p_circu = 'P19'                 # Cde circulateur
 p_v3v_p = 'P20'                 # Cde + vanne 3 voies
@@ -231,9 +233,9 @@ class regul_vanne(object):
         # Compense l'offset mecanique de la vanne pour optimisation temps
 
         if self.etape == 1 and circulateur == 1:
-            self.tempo = 12000  # pour 12s = 10 % d'offset
+            self.tempo = 3000   # 12000 = 12s = 10 % d'offset
             self.pin_p(ON)          # active actionneur
-            self.position = 10.0     # % ouverture vanne
+            self.position = 2.5     # % ouverture vanne
             self.etape = 3
         
         # Regulation position vanne
@@ -474,10 +476,10 @@ def lecture_fichiers():
         print('Lecture fichier p_cons.dat: ', param_cons)
     except:
         print('Erreur lecture fichier parametres calcul consigne eau')
-    finally:
         #Cree fichier parametres par defaut
         f=open('p_cons.dat','w')
         f.write(json.dumps(param_cons))
+    finally:
         f.close()
 
     try:
@@ -486,10 +488,10 @@ def lecture_fichiers():
         print('Lecture fichier p_vanne.dat: ',param_vanne)
     except:
         print('Erreur lecture fichier parametres vanne')
-    finally:
         #Cree fichier parametres par defaut
         f=open('p_vanne.dat','w')
         f.write(json.dumps(param_vanne))
+    finally:
         f.close()
 
     try:
@@ -498,12 +500,11 @@ def lecture_fichiers():
         print('Lecture fichier p_thermop.dat: ', param_thermop)
     except:
         print('Erreur lecture fichier parametres thermoplongeur')
-    finally:
         #Cree fichier parametres par defaut
         f=open('p_thermop.dat','w')
         f.write(json.dumps(param_thermop))
+    finally:
         f.close()
-
     
     try:
         f=open('p_fonct.dat', 'r')
@@ -511,10 +512,10 @@ def lecture_fichiers():
         print('Lecture fichier p_fonct.dat: ', param_fonct)
     except:
         print('Erreur lecture fichier parametres fonctionnement')
-    finally:
         #Cree fichier parametres
         f=open('p_fonct.dat', 'w')
-        f.write(json.dumps(param_fonct))
+        f.write(json.dumps(param_fonct))        
+    finally:
         f.close()
     
     # Lecture fichiers affections thermometres
@@ -750,10 +751,11 @@ while True:
             if DEBUG : print ('Temps de cycle : ', t_cycle,  ' ms')
 
 # Sauvegarde compteurs conso chauffage / 24h
-        current_time = time.localtime()
-# RTC initialiser par le reseau et heure = 0 minute = 1 ?
+        current_time = time.localtime() # Heure locale
+        # print ("Heure locale : ",current_time)
+# RTC initialiser par le reseau et heure = 23 minute = 59 ?
         if current_time[0] != 1970 and current_time[3] == 23 and current_time[4] == 59 :
-            if param_fonct[1] == 1 and flag == False:  # Marche chauffage et oneshot 
+            if param_fonct[1] >= 1 and flag == False:  # Marche chauffage et oneshot 
                 reg_c.daily_save(current_time[0], current_time[7])
                 flag = True
         elif current_time[4] != 1 :
