@@ -71,15 +71,15 @@ NBTHERMO = const(4) # Nombre de thermometres OneWire
 #----------- Parametres par defaut pour creation fichiers ----------------------------
 # T eau fonction de T ext, Consigne ambiante et ecart consigne ambiante - T ambianteregul_chauffe.py
 # Parametres pour calcul loi d'eau lineaire par segment : 
-# (offset(°C), (t_max_zon1(°C), pente1), (t_max2(°C),_zon2 pente2), ...,Use_T_int True/False)
-param_cons = [25, (10, 0.45), (20, 0.42), (30, 0.40), (40, 0.39), True]
+# (offset(°C), (t_max_zon1(°C), pente1), (t_max2(°C),_zon2 pente2), ...,Use_Temp_int True/False)
+param_cons = [19, (10, 0.48), (20, 0.45), (30, 0.42), (40, 0.39), True]
 
 # Parametres pour regulation vanne
 # (T cuve mini utilisable(°C), Bandemorte regul(°C), t(s) pulse+/-, t(s) attente, t(s) ouverture 0-100%)
-param_vanne = [26.0, 0.5, 3, 100, 120]
+param_vanne = [25.0, 0.5, 3, 60, 120]
 
 # Parametres gestion commande electrique thermoplongeur
-# (DT calcul cons en HC, DT calcul cons en HP, Resistance unitaire (Ohms), tension(V) unitaire par résistance)
+# (DT calcul conso en HC, DT calcul conso en HP, Resistance unitaire (Ohms), tension(V) unitaire par résistance)
 param_thermop = [25.0, 6.0, 26.0, 225]
 
 # Parametres de fonctionnement
@@ -214,11 +214,14 @@ class regul_vanne(object):
         self.position = 0.0
         self.tempo = 0
         self.first_pos = False
+        self.t_van_tm1 = 0.0
+        self.dt_van = 0
 
     def run(self, t_cons_eau, t_cuve, t_sortie_vanne, t_cycl, circulateur, chauffage_on):
         ''' Active la régulation de la vanne '''
         if DEBUG :
             print('Etape cde vanne : ',  self.etape,  'Tempo',  self.tempo)
+            print("DeltaT vanne: ", self.dt_van)
         else :
             print('Etape regulation : ', self.etape)
         
@@ -228,6 +231,7 @@ class regul_vanne(object):
             self.pin_m(ON)             # active actionneur
             self.position = 0.0     # % ouverture vanne
             self.etape = 3
+            self.t_van_tm1 = t_sortie_vanne  # _van_tm1 pour calcul pseudo dérivé de T vanne regul
             self.first_pos = True
 
         # Compense l'offset mecanique de la vanne pour optimisation temps
@@ -236,12 +240,15 @@ class regul_vanne(object):
             self.tempo = 3000   # 12000 = 12s = 10 % d'offset
             self.pin_p(ON)          # active actionneur
             self.position = 2.5     # % ouverture vanne
+            self.t_van_tm1 = t_sortie_vanne
             self.etape = 3
         
         # Regulation position vanne
         if self.etape == 2:         # Controle regulation vanne
             if circulateur == 1:     # Chauffage On
-                if t_sortie_vanne < t_cons_eau - self.deadband:
+                self.t_van_tm1 = t_sortie_vanne
+                # Ouvre + la vanne si T sortie vanne < consigne hors deadbande et dt <=  0
+                if t_sortie_vanne < (t_cons_eau - self.deadband) and (self.dt_van <= 0):
                     self.tempo = self.t_pulse
                     self.pin_p(ON)
                     print('Pulse +')
@@ -250,7 +257,8 @@ class regul_vanne(object):
                     else:
                         self.position = 100.0
                     self.etape = 3
-                elif t_sortie_vanne > t_cons_eau + self.deadband :
+                # Ouvre - la vanne si T sortie vanne > consigne hors deadbande et dt <=  0        
+                elif t_sortie_vanne > (t_cons_eau + self.deadband) and (self.dt_van >= 0) :
                     self.tempo = self.t_pulse
                     self.pin_m(ON)
                     print('Pulse -')
@@ -259,6 +267,9 @@ class regul_vanne(object):
                     else:
                         self.position = 0.0
                     self.etape = 3
+                else:
+                    self.tempo = self.t_wait
+                    self.etape = 4
             else:
                 self.etape = 0
         
@@ -272,8 +283,8 @@ class regul_vanne(object):
                 self.tempo = self.t_wait
                 self.etape = 4
         
-        # Gestion temps attente après modification position vanne
-        if self.etape == 4:         # Attente après correction ou positionnement
+        # Gestion temps attente après modification ou non position vanne
+        if self.etape == 4:        
             if self.tempo > 0 :
                 self.tempo -= t_cycl
             else:
@@ -284,9 +295,10 @@ class regul_vanne(object):
                     self.first_pos = False
                 elif circulateur == 1:
                     self.etape = 2              # si circulateur off reste en étape 4
+            self.dt_van = t_sortie_vanne - self.t_van_tm1 # Delta t durée attente > 0 la temperature monte
             if chauffage_on == 0:
                 self.etape = 0
-
+ 
     def get_pos_vanne(self):
         ''' Get position vanne regulation '''
         return self.position
@@ -388,7 +400,7 @@ class  ges_thermoplongeur(object):
                 self.nbr_toactiv = 0
                 # self.nbr_activ = 0
         # Appel fonction pilotage sortie commande et gestion delestage 
-        if DEBUG : print(self.nbr_toactiv, ' ', self.nbr_activ)       
+        if DEBUG : print("Delestage: ", self.nbr_toactiv, ' ', self.nbr_activ)       
         self.nbr_activ = self._delestage(self.nbr_toactiv, self.nbr_activ,self.Idispo, param_thermop[2])
         # Gestion comptage puissance chauffage
         self.current_theori = self.nbr_activ * (params[3] / params[2])  
