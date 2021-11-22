@@ -72,7 +72,7 @@ NBTHERMO = const(4) # Nombre de thermometres OneWire
 # T eau fonction de T ext, Consigne ambiante et ecart consigne ambiante - T ambianteregul_chauffe.py
 # Parametres pour calcul loi d'eau lineaire par segment : 
 # (offset(°C), (t_max_zon1(°C), pente1), (t_max2(°C),_zon2 pente2), ...,Use_Temp_int True/False)
-param_cons = [19, (10, 0.48), (20, 0.45), (30, 0.42), (40, 0.39), True]
+param_cons = [20.0, (10, 0.47), (20, 0.45), (30, 0.42), (40, 0.39), True]
 
 # Parametres pour regulation vanne
 # (T cuve mini utilisable(°C), Bandemorte regul(°C), t(s) pulse+/-, t(s) attente, t(s) ouverture 0-100%)
@@ -181,10 +181,10 @@ def calc_cons_eau(SetP_amb, T_amb, T_ext, params):
 def cnt_circulateur(cons_amb,  t_amb, pin_cde, marche):
     ''' Commande circulateur '''
     if marche == 1 :    # Marche chauffage
-        if t_amb < (cons_amb) and t_amb != 0.0 :
+        if t_amb < (cons_amb +1.6) and t_amb != 0.0 :
             pin_cde(ON)
             return 1        # Etat circulateur
-        elif t_amb > (cons_amb) :
+        elif t_amb > (cons_amb + 1.5) :
             pin_cde(OFF)
             return 0            
     elif marche == 2 :      # Marche chauffage avec circulateur actif en permanence
