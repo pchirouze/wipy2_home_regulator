@@ -633,9 +633,9 @@ while True:
             else:
                 pycom.rgbled(0x0000ff)
                 cpt_err_edf += 1
-                if cpt_err_edf > 3 :
+                if cpt_err_edf > 5 :
                     print('Defaut lecture teleinfo EDF')
-                    #machine.reset() 
+                    machine.reset() 
             new_lec=False
             lock.release()
             if DEBUG :        print('Compteur EDF : ',  data_cpt)
