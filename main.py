@@ -95,7 +95,7 @@ p_bus_ow = 'P22'                # bus OneWire pour DS18X20
 p_R1 = 'P5'                     # Cde resistance R1
 p_R2 = 'P6'                     # Cde resistance R2
 p_R3 = 'P7'                     # Cde resistance R3
-p_R4 = 'P8'                     # Cde resistance R4
+p_libre = 'P8'                  # Libre 
 p_hc = 'P9'                     # Heures creuses
 
 T_NOM_TH =['Text', 'Tint', 'Tcuv', 'Tv3v'] # Si changement DS18 modifié fichier thermo.dat
