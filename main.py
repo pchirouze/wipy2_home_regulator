@@ -725,7 +725,7 @@ while True:
                     #rtc.ntp_sync("pool.ntp.org")
                     rtc.ntp_sync("ntp.midway.ovh")
                     # Gestion heure été/hiver
-                    gmt_time = time.localtime()
+                    gmt_time = time.gmtime()
                     if gmt_time[1] == 3 and gmt_time[6] == 6 :   # Mars et Dimanche
                         if gmt_time[2] + 7 > 31  and gmt_time[3] == 3 and gmt_time[4] == 0:
                             # Dernier Dimanche du mois et 3h00 >> heure été 
