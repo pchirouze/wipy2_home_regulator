@@ -354,7 +354,7 @@ class  ges_thermoplongeur(object):
 
     def run(self, marche, t_cons_eau, t_cuve, data_edf, t_cycl,  params):
     	''' Docstring here '''
-# Calcul du courant disponible pour le chauffage (delestage)
+        # Calcul du courant disponible pour le chauffage (delestage)
         try:
             self.iinst= int(data_edf['IINST'])
             self.imax= int(data_edf['ISOUSC'])
@@ -400,7 +400,8 @@ class  ges_thermoplongeur(object):
                 self.nbr_toactiv = 0
                 # self.nbr_activ = 0
         # Appel fonction pilotage sortie commande et gestion delestage 
-        if DEBUG : print("Delestage: ", self.nbr_toactiv, ' ', self.nbr_activ)       
+        if DEBUG : 
+            print("Delestage: ", self.nbr_toactiv, ' ', self.nbr_activ)
         self.nbr_activ = self._delestage(self.nbr_toactiv, self.nbr_activ,self.Idispo, param_thermop[2])
         # Gestion comptage puissance chauffage
         self.current_theori = self.nbr_activ * (params[3] / params[2])  
@@ -418,7 +419,7 @@ class  ges_thermoplongeur(object):
                 pycom.nvs_set('cpt_hp',int(self.kw_hp))                       
 
     def get_power(self):
-    	''' Docstring here '''
+        ''' Docstring here '''
         return self.puissance
     
     def daily_save(self, year, nday):
@@ -435,7 +436,7 @@ class  ges_thermoplongeur(object):
         self.kw_hp = 0    
 
     def get_energie(self):
-    	''' Docstring here '''
+        ''' Docstring here '''
         return self.kw_hc,  self.kw_hp
 
 #
