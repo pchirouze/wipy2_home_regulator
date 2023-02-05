@@ -724,7 +724,16 @@ while True:
                     rtc=RTC()
                     #rtc.ntp_sync("pool.ntp.org")
                     rtc.ntp_sync("ntp.midway.ovh")
-                    time.timezone(3600)
+                    # Gestion heure été/hiver
+                    gmt_time = time.localtime()
+                    if gmt_time[1] == 3 and gmt_time[6] == 6 :   # Mars et Dimanche
+                        if gmt_time[2] + 7 > 31  and gmt_time[3] == 3 and gmt_time[4] == 0:
+                            # Dernier Dimanche du mois et 3h00 >> heure été 
+                            time.timezone = 7200
+                    if gmt_time[1] == 10 and gmt_time[6] == 6 :   # Octobre et Dimanche
+                        if gmt_time[2] + 7 > 31  and gmt_time[3] == 2 and gmt_time[4] == 0:
+                            # Dernier Dimanche et 2h00 >> heure hiver
+                            time.timezone = 3600           
                     print(time.localtime())
                     etape_wifi = 2
                 else:
