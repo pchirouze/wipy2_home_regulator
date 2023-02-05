@@ -49,6 +49,11 @@ ETX = b'\x03'
 ON = const(1)              # Pour activer sorties logiques
 OFF = const(0)
 NBTHERMO = const(4) # Nombre de thermometres OneWire
+TYPE_CPT = 'LINKY' 
+TYPE_CONTRAT = 'ZEN_WEEKEND_PLUS'  # Contrat EDF
+jours_hc ={2,5,6}                   # Jours heures creuses 24H
+plage_hc = [2.5, 7.5, 13.5, 16.5]    # Heures heures creuses autres jours
+
 # Trame d'emission simulation connexion compteur (téléinfo edf)
 # if SIMU == 1:
 #    trame_edf = STX + \
@@ -328,6 +333,7 @@ class  ges_thermoplongeur(object):
         except:
             pycom.nvs_set('cpt_hp',0)    
         self.puissance = 0.0
+        self.t_encours = 'HP..'
 
 # Fonction gestion pilotage résistance thermoplongeur et delestage
     def _delestage(self,nbR, nbr_activ, Idispo, Rmoy):
@@ -352,13 +358,42 @@ class  ges_thermoplongeur(object):
             self.nbr_activ = 0
             return self.nbr_activ
 
+# Gestion heures pleines heures creuses avec compteur electroniques ou\
+# compteur Linky protocole historique, contrat historique ou contrat ZEN PLUS
+    def _ges_hchp(self,type_cpt, type_contrat, data_edf):
+        if type_cpt != 'LINKY' :    # ancien compteur electronique
+            try:
+                return data_edf['PTEC'] 
+            except:
+                return 'HP..'
+        elif type_contrat == 'HISTORIQUE':     # Compteur Linky
+            try:
+                return data_edf['PTEC'] 
+            except:
+                return 'HP..'
+        # Contrat non historique 'PTEC' pas utilisable, gestion par calendrier et time 
+        elif type_contrat == 'ZEN_WEEKEND_PLUS':
+            # Heure creuses tout le weekend, le mercredi, et les autres jours 2h30-7h30 13h30 16h30
+            date_heure = time.localtime()
+            heure_centi = date_heure[3] + (date_heure[4] / 60) # conversion en heure centiheure
+            if date_heure[6] in jours_hc:
+                return 'HC..'   # Jour HC sur 24h
+            elif heure_centi >= plage_hc[0] and heure_centi <= plage_hc[1]:
+                return 'HC..'
+            elif heure_centi >= plage_hc[2] and heure_centi <= plage_hc[3]:
+                return 'HC..'
+            else :
+                return 'HP..' 
+        else:
+            return 'HP..'
+
     def run(self, marche, t_cons_eau, t_cuve, data_edf, t_cycl,  params):
-    	''' Docstring here '''
+    	''' Gestion thermo plongeur'''
         # Calcul du courant disponible pour le chauffage (delestage)
         try:
             self.iinst= int(data_edf['IINST'])
             self.imax= int(data_edf['ISOUSC'])
-            self.t_encours = data_edf['PTEC']
+            self.t_encours = self._ges_hchp(TYPE_CPT, TYPE_CONTRAT, data_edf)
             self.error = 0
         except :
             self.error = 1
@@ -366,7 +401,7 @@ class  ges_thermoplongeur(object):
             self.imax = 35
             self.t_encours = 'HP..'
         self.Idispo = self.imax - self.iinst
-        # Positionne la sortie HC/HP
+# Positionne la sortie HC/HP
         if self.t_encours == 'HC..':
             self.pin_hc.value(ON)
         else:
