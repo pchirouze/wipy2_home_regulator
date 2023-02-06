@@ -394,6 +394,7 @@ class  ges_thermoplongeur(object):
             self.iinst= int(data_edf['IINST'])
             self.imax= int(data_edf['ISOUSC'])
             self.t_encours = self._ges_hchp(TYPE_CPT, TYPE_CONTRAT, data_edf)
+            if DEBUG: print("Type tarif : ", self.t_encours)
             self.error = 0
         except :
             self.error = 1
@@ -474,7 +475,6 @@ class  ges_thermoplongeur(object):
         ''' Docstring here '''
         return self.kw_hc,  self.kw_hp
 
-#
 # Callbacks connexion MQTT protocole to free broker
 #
 
@@ -599,6 +599,7 @@ ser=UART(1)         # Init Uart 1 pour liaison compteur electrique EDF
 ser.init(1200, bits=7,  parity=ser.EVEN, stop=1)
 lock=_thread.allocate_lock()
 task_recv =_thread.start_new_thread(edf_recv, (ser,))
+rtc=RTC()
 new_lec=False
 mes=b''
 temp={}
@@ -624,6 +625,7 @@ temp_tm1={}
 
 pycom.heartbeat(False)
 all_t_read = 0
+jour_tm1 = 0
 
 # Init watchdog
 if WATCH_DOG :
@@ -674,7 +676,11 @@ while True:
                     machine.reset() 
             new_lec=False
             lock.release()
+            # Modif suite Linky et Contrat non historique pour protocole MQTT 
+            if TYPE_CPT == "LINKY" and TYPE_CONTRAT == "ZEN_WEEKEND_PLUS":
+                data_cpt["PTEC"] = reg_c.t_encours
             if DEBUG :        print('Compteur EDF : ',  data_cpt)
+
     
     # Calcul consigne  temp eau chauffage
             cons_eau= calc_cons_eau(param_fonct[0], temp['Tint'],  temp['Text'], param_cons )
@@ -713,7 +719,7 @@ while True:
                         wlan.ifconfig(config = ('192.168.0.52', '255.255.255.0', '192.168.0.254', '212.27.40.240'))
 #                        wlan.ifconfig(config='dhcp')
                         wlan.connect(SSID, auth=(WLAN.WPA2, PWID), timeout=50)
-                        print('Connexion ?')
+                        #print('Connexion ?')
                         time.sleep(2)       # Indispensable
                         etape_wifi = 1
  
@@ -721,20 +727,7 @@ while True:
             if etape_wifi == 1:
                 if wlan.isconnected(): 
                     print('Connecte WIFI : ',  wlan.ifconfig())
-                    rtc=RTC()
-                    #rtc.ntp_sync("pool.ntp.org")
-                    rtc.ntp_sync("ntp.midway.ovh")
-                    # Gestion heure été/hiver
-                    gmt_time = time.gmtime()
-                    if gmt_time[1] == 3 and gmt_time[6] == 6 :   # Mars et Dimanche
-                        if gmt_time[2] + 7 > 31  and gmt_time[3] == 1 and gmt_time[4] == 0:
-                            # Dernier Dimanche du mois et 1h00 GMT >> heure été 
-                            time.timezone = 7200
-                    if gmt_time[1] == 10 and gmt_time[6] == 6 :   # Octobre et Dimanche
-                        if gmt_time[2] + 7 > 31  and gmt_time[3] == 0 and gmt_time[4] == 0:
-                            # Dernier Dimanche et 0h00 GMT >> heure hiver
-                            time.timezone = 3600           
-                    print(time.localtime())
+
                     etape_wifi = 2
                 else:
                     print('Wifi not connected')
@@ -753,11 +746,11 @@ while True:
                         #client.disconnect()
                         print ('Erreur connexion au seveur MQTT', MQTT_server)
                         time.sleep(1)
-#                        wifi_etape = 1
+                        Wifi_etape = 1
                 
 # WIFI et MQTT Ok 
             if etape_wifi == 3:
-                if not wlan.isconnected():
+                if not wlan.isconnected():  
                     etape_wifi = 0                    
                 try:
                     client.check_msg()
@@ -794,18 +787,36 @@ while True:
                     f.write(txtlog)   
                     f.close()
                     on_time = True
-                    
-
             if DEBUG: print('Etape Wifi: ', etape_wifi) 
-            #--------- Pour simulation liaison compteur Edf (jumper RX-TX loop)
-            # if SIMU == 1:  ser.write(trame_edf)
-            #--------------------------------------------------------------
-            pycom.rgbled(0x000000)              # Eteint LED
-            time.sleep(1.1)
-            # Calcul temps de cycle (ms)
-            t_cycle=time.ticks_diff(start_t, time.ticks_ms())
-#            machine.idle()
-            if DEBUG : print ('Temps de cycle : ', t_cycle,  ' ms')
+
+#--------- Pour simulation liaison compteur Edf (jumper RX-TX loop)
+# if SIMU == 1:  ser.write(trame_edf)
+#--------------------------------------------------------------
+
+# Initialise RTC avec service NTP
+            gmt_time = time.gmtime()
+            if gmt_time[2] != jour_tm1 :
+                rtc.ntp_sync("ntp.midway.ovh")
+
+# Gestionchangement heure été/hiver
+                jour_tm1 = gmt_time[2]
+                time_hiver_ete = time.mktime((gmt_time[0], 3,31,1,30,0,0,0))   # 31/03 1h30 GMT
+                dt_h_e = time.gmtime(time_hiver_ete)
+                l_dt_h_e = list(dt_h_e)
+                l_dt_h_e[2] -= dt_h_e[6] + 1              # Jour du dernier dimanche du mois
+                dt_h_e = tuple(l_dt_h_e)
+                time_hiver_ete = time.mktime(dt_h_e)
+                time_ete_hiver = time.mktime((gmt_time[0], 10,31,0,30,0,0,0))   # 31/10 0h30 GMT
+                dt_e_h = time.gmtime(time_ete_hiver)
+                l_dt_e_h = list(dt_e_h) 
+                l_dt_e_h[2] -= dt_e_h[6] + 1              # Jour du dernier dimanche du mois
+                dt_e_h = tuple(l_dt_e_h)
+                time_ete_hiver = time.mktime(dt_e_h)
+                if time.mktime(gmt_time) >= time.mktime(dt_h_e) and time.mktime(gmt_time) <= time.mktime(dt_e_h):
+                    time.timezone(7200)                # Local time = GMT + 2
+                else:
+                    time.timezone(3600)                # Local time = GMT + 1
+                if DEBUG :print("-------- Heure locale -------  : ",time.localtime())
 
 # Sauvegarde compteurs conso chauffage / 24h
         current_time = time.localtime() # Heure locale
@@ -817,6 +828,13 @@ while True:
                 flag = True
         elif current_time[4] != 1 :
             flag = False
+# Calcul temps de cycle (ms)
+        pycom.rgbled(0x000000)              # Eteint LED
+        time.sleep(1.1)
+        t_cycle = time.ticks_diff(start_t, time.ticks_ms())
+        if DEBUG : print ('Temps de cycle : ', t_cycle,  ' ms')
+        if DEBUG : print ("Date Heure locale", time.localtime())
+
 # Pour relance watchdog
         if WATCH_DOG :
             wdog.feed()
