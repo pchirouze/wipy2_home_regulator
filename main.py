@@ -378,9 +378,9 @@ class  ges_thermoplongeur(object):
             heure_centi = date_heure[3] + (date_heure[4] / 60) # conversion en heure centiheure
             if date_heure[6] in jours_hc:
                 return 'HC..'   # Jour HC sur 24h
-            elif heure_centi >= plage_hc[0] and heure_centi <= plage_hc[1]:
+            elif heure_centi >= plage_hc[0] and heure_centi < plage_hc[1]:
                 return 'HC..'
-            elif heure_centi >= plage_hc[2] and heure_centi <= plage_hc[3]:
+            elif heure_centi >= plage_hc[2] and heure_centi < plage_hc[3]:
                 return 'HC..'
             else :
                 return 'HP..' 
