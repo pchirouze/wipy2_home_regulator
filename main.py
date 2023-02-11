@@ -104,7 +104,7 @@ p_libre = 'P8'                  # Libre
 p_hc = 'P9'                     # Heures creuses
 
 T_NOM_TH =['Text', 'Tint', 'Tcuv', 'Tv3v'] # Si changement DS18 modifié fichier thermo.dat
-
+T_CYCLE_S = 1800        # Periode PWM circulateur en sec.
 # WIFI connexion data, ID , PWD
 WIFI_C = ('192.168.0.52', '255.255.255.0', '192.168.0.254', '212.27.40.240')
 SSID='freebox_PC'
@@ -185,20 +185,44 @@ def calc_cons_eau(SetP_amb, T_amb, T_ext, params):
 #
 def cnt_circulateur(cons_amb,  t_amb, pin_cde, marche):
     ''' Commande circulateur '''
+    
+    global time_pwm_start_on, step_cnt, pulse_time 
+
     if marche == 1 :    # Marche chauffage
         if t_amb < (cons_amb +1.6) and t_amb != 0.0 :
             pin_cde(ON)
-            return 1        # Etat circulateur
         elif t_amb > (cons_amb + 1.5) :
             pin_cde(OFF)
-            return 0            
-    elif marche == 2 :      # Marche chauffage avec circulateur actif en permanence
-        pin_cde(ON)         
-        return 1            # Etat circulateur
+          
+    elif marche == 2 :      # Marche chauffage avec circulateur actif en PWM sur cycle 1H00
+        if step_cnt == 0:
+            r_activ =  1 - 0.25 * (t_amb - cons_amb)  # (0.25 determiner pour + 4°C)
+            time_pwm_start_on = time.time()
+            if r_activ >= 1.0 :
+                pulse_time = T_CYCLE_S    # Pulse = Periode
+                step_cnt = 1
+            elif r_activ <= 0 :
+                pulse_time = 0          # Pulse = 0
+                step_cnt = 2
+            else :
+                step_cnt = 1
+                pulse_time = T_CYCLE_S * r_activ  # Temps de pulse ON en sec 
+
+        elif step_cnt == 1:
+            pin_cde(ON)         # Cirulateur ON  
+            if time.time() - time_pwm_start_on >= pulse_time and pulse_time < T_CYCLE_S:
+                step_cnt = 2
+            elif time.time() - time_pwm_start_on >= pulse_time :
+                step_cnt = 0
+
+        elif step_cnt == 2:
+            pin_cde(OFF)         # Cirulateur OFF
+            if (time.time() - time_pwm_start_on) >= T_CYCLE_S : 
+                step_cnt = 0
     else:    
         pin_cde(OFF)
-        return 0
-#
+    return int(pin_cde.value())
+
 # Regulation vanne 3 voies sur circuit solaire chauffage
 #
 class regul_vanne(object):
@@ -389,7 +413,7 @@ class  ges_thermoplongeur(object):
 
     def run(self, marche, t_cons_eau, t_cuve, data_edf, t_cycl,  params):
     	''' Gestion thermo plongeur'''
-        # Calcul du courant disponible pour le chauffage (delestage)
+# Calcul du courant disponible pour le chauffage (delestage)
         try:
             self.iinst= int(data_edf['IINST'])
             self.imax= int(data_edf['ISOUSC'])
@@ -626,6 +650,10 @@ temp_tm1={}
 pycom.heartbeat(False)
 all_t_read = 0
 jour_tm1 = 0
+time_pwm_start_on = 0
+step_cnt = 0
+pulse_time = 0
+
 
 # Init watchdog
 if WATCH_DOG :
@@ -683,7 +711,7 @@ while True:
 
     
     # Calcul consigne  temp eau chauffage
-            cons_eau= calc_cons_eau(param_fonct[0], temp['Tint'],  temp['Text'], param_cons )
+            cons_eau = calc_cons_eau(param_fonct[0], temp['Tint'],  temp['Text'], param_cons )
             if DEBUG :  print('Temp. consigne eau : ',  cons_eau)
     
     # Controle circulateur
