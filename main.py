@@ -103,8 +103,10 @@ p_R3 = 'P7'                     # Cde resistance R3
 p_libre = 'P8'                  # Libre 
 p_hc = 'P9'                     # Heures creuses
 
-T_NOM_TH =['Text', 'Tint', 'Tcuv', 'Tv3v'] # Si changement DS18 modifié fichier thermo.dat
-T_CYCLE_S = 1800        # Periode PWM circulateur en sec.
+T_NOM_TH =['Text', 'Tint', 'Tcuv', 'Tv3v'] # Si changement DS18 modifié fichier thermo.at
+T_CYCLE_S = 1800            # Periode PWM circulateur en sec.
+SCALE_PWM = 4.0             # (T salon - T consigne) pour calcul PWM circulateur
+
 # WIFI connexion data, ID , PWD
 WIFI_C = ('192.168.0.52', '255.255.255.0', '192.168.0.254', '212.27.40.240')
 SSID='freebox_PC'
@@ -196,13 +198,13 @@ def cnt_circulateur(cons_amb,  t_amb, pin_cde, marche):
           
     elif marche == 2 :      # Marche chauffage avec circulateur actif en PWM sur cycle 1H00
         if step_cnt == 0:
-            r_activ =  1 - 0.25 * (t_amb - cons_amb)  # (0.25 determiner pour + 4°C)
+            r_activ =  1 - 1 / SCALE_PWM * (t_amb - cons_amb)  # Calcul durée pulse PWM circulateur
             time_pwm_start_on = time.time()
             if r_activ >= 1.0 :
-                pulse_time = T_CYCLE_S    # Pulse = Periode
+                pulse_time = T_CYCLE_S          # Pulse = Periode
                 step_cnt = 1
             elif r_activ <= 0 :
-                pulse_time = 0          # Pulse = 0
+                pulse_time = 0                  # Pulse = 0
                 step_cnt = 2
             else :
                 step_cnt = 1
