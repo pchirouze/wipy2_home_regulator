@@ -111,6 +111,10 @@ SCALE_PWM = 4.0             # (T salon - T consigne) pour calcul PWM circulateur
 WIFI_C = ('192.168.0.52', '255.255.255.0', '192.168.0.254', '212.27.40.240')
 SSID='freebox_PC'
 PWID='parapente'
+
+# NTP server 
+NTP_SERVER = "ntp.deuza.net"
+
 # Broker MQTT Mosquitto sur Raspberry PI 4 sur reseau local IP forcé par configuration routeur freebox
 MQTT_server = "192.168.0.41"         
 MQTT_PORT = 1883
@@ -826,7 +830,8 @@ while True:
 # Initialise RTC avec service NTP
             gmt_time = time.gmtime()
             if gmt_time[2] != jour_tm1 :
-                rtc.ntp_sync("ntp.midway.ovh")
+                #rtc.ntp_sync("ntp.midway.ovh")
+                rtc.ntp_sync(NTP_SERVER)
 
 # Gestionchangement heure été/hiver
                 jour_tm1 = gmt_time[2]
