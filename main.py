@@ -52,7 +52,7 @@ NBTHERMO = const(4) # Nombre de thermometres OneWire
 TYPE_CPT = 'LINKY' 
 TYPE_CONTRAT = 'ZEN_WEEKEND_PLUS'  # Contrat EDF
 jours_hc ={2,5,6}                   # Jours heures creuses 24H
-plage_hc = [2.5, 7.5, 13.5, 16.5]    # Heures heures creuses autres jours
+plage_hc = [2.5, 7.5, 13.5, 16.5]    # Heures creuses autres jours en H et cH
 
 # Trame d'emission simulation connexion compteur (téléinfo edf)
 # if SIMU == 1:
@@ -443,10 +443,10 @@ class  ges_thermoplongeur(object):
         # Marche chauffage et heures creuses
         if marche >= 1 and self.t_encours == 'HC..':
             # Chauffe si T cuve < Cons T eau + T acc:umulation HC
-            if t_cuve < (params[0] + t_cons_eau) and t_cuve != 0.0 :
+            if t_cuve + 0.2 < (params[0] + t_cons_eau) and t_cuve != 0.0 :
                 # Cde 3 resistances thermo suivant delestage ou non (0 a 6 kW)
                 self.nbr_toactiv = 3
-            else:
+            elif t_cuve > (params[0] + t_cons_eau) and t_cuve != 0.0 :
                 self.nbr_toactiv = 0   
                 # self.nbr_activ = 0
         # Marche et heures pleines
@@ -454,11 +454,11 @@ class  ges_thermoplongeur(object):
             if marche >= 1:
                 # Chauffe si T cuve < Cons T eau + T accumulation HC
                 #if t_cuve < params[0] + t_cons_eau : #----------- TEST -----------
-                if t_cuve < (params[1] + t_cons_eau) and t_cuve != 0 :
+                if t_cuve + 0.2 < (params[1] + t_cons_eau) and t_cuve != 0 :
                     print('Consigne chauffe cuve', t_cons_eau+params[1])
                     # Cde resistances thermo suivant delestage ou non (0 a 4 kW)
                     self.nbr_toactiv = 3
-                else:
+                elif t_cuve > (params[1] + t_cons_eau) and t_cuve != 0 :
                     # Reset cde resistance thermoplongeurs   
                     self.nbr_toactiv = 0   
                     # self.nbr_activ = 0
