@@ -50,7 +50,8 @@ ON = const(1)              # Pour activer sorties logiques
 OFF = const(0)
 NBTHERMO = const(4) # Nombre de thermometres OneWire
 TYPE_CPT = 'LINKY' 
-TYPE_CONTRAT = 'ZEN_WEEKEND_PLUS'  # Contrat EDF
+TYPE_CONTRAT = 'ZEN_WEEKEND_PLUS'  # Contrat EDF ZEN WEEKEND
+#TYPE_CONTRAT = "HISTORIQUE"         # Contrat classique heure creuse
 jours_hc ={2,5,6}                   # Jours heures creuses 24H
 plage_hc = [2.5, 7.5, 13.5, 16.5]    # Heures creuses autres jours en H et cH
 
