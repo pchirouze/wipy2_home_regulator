@@ -202,7 +202,7 @@ def cnt_circulateur(cons_amb,  t_amb, pin_cde, marche):
         elif t_amb > (cons_amb + 1.5) :
             pin_cde(OFF)
           
-    elif marche == 2 :      # Marche chauffage avec circulateur actif en PWM sur cycle 1H00
+    elif marche == 2 :      # Marche chauffage avec circulateur actif en PWM sur cycle de T_CYCLE_S sec.
         if step_cnt == 0:
             r_activ =  1 - 1 / SCALE_PWM * (t_amb - cons_amb)  # Calcul durée pulse PWM circulateur
             time_pwm_start_on = time.time()
@@ -528,7 +528,7 @@ def incoming_mess(topic, msg):
             f.write(json.dumps(param_fonct))
             f.close()        
         if topic==b'/regchauf/cde' and msg == b'2':
-            param_fonct[1] = 2              # Régule avec T ext seul (pas d'arrêt circilateur)       
+            param_fonct[1] = 2              # Régule avec T ext seul (Circulateur en PWM)       
             f=open('p_fonct.dat', 'w')
             f.write(json.dumps(param_fonct))
             f.close()
