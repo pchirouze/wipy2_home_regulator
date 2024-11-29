@@ -370,21 +370,21 @@ class  ges_thermoplongeur(object):
 # Fonction gestion pilotage résistance thermoplongeur et delestage
     def _delestage(self,nbR, nbr_activ, Idispo, Rmoy):
         self.nbr_activ = nbr_activ
-        if nbR > 0 :
-            if Idispo > (Rmoy/230) :                # Irmoy courant pour une resistance
-                if self.nbr_activ < nbR:
+        if nbR > 0 :                                # nbR ; nombre de résistances a activer au demarrage chauffage (1 à 3)
+            if Idispo > (230/Rmoy) :                # I theorique par resistance
+                if self.nbr_activ < 3:            # if self.nbr_activ < Nombre de résistances:
                     self.pin_R[self.nbr_activ].value(ON)  
                     self.nbr_activ += 1
-                    if DEBUG : print('Active une resistance', Idispo, nbR, self.nbr_activ)
-            else:
+                    #if DEBUG : print('Active une resistance', Idispo, self.nbr_activ)
+            elif Idispo < 0 :                          # Si depassement courant souscrit
                 # Delestage
                 if self.nbr_activ > 0:
                     self.nbr_activ -= 1
                     self.pin_R[self.nbr_activ].value(OFF) 
-                    if DEBUG : print('Desactive une resistance', Idispo, nbR, self.nbr_activ)
+                    #if DEBUG : print('Desactive une resistance', Idispo, self.nbr_activ)
             return self.nbr_activ
-        else:
-            self.pin_R[0].value(OFF)
+        else:                                           # On ne chauffe pas
+            self.pin_R[0].value(OFF)    
             self.pin_R[1].value(OFF)
             self.pin_R[2].value(OFF)
             self.nbr_activ = 0
@@ -424,14 +424,15 @@ class  ges_thermoplongeur(object):
 # Calcul du courant disponible pour le chauffage (delestage)
         try:
             self.iinst= int(data_edf['IINST'])
-            self.imax= int(data_edf['ISOUSC'])
+            ##self.imax= int(data_edf['ISOUSC'])
+            self.imax = 32                      # ----------------- Pour test délesteur en avec abonnement 6kW -------------
             self.t_encours = self._ges_hchp(TYPE_CPT, TYPE_CONTRAT, data_edf)
             if DEBUG: print("Type tarif : ", self.t_encours)
             self.error = 0
         except :
             self.error = 1
             self.iinst =0
-            self.imax = 35
+            self.imax = 25
             self.t_encours = 'HP..'
         self.Idispo = self.imax - self.iinst
 # Positionne la sortie HC/HP
@@ -446,7 +447,7 @@ class  ges_thermoplongeur(object):
             # Chauffe si T cuve < Cons T eau + T acc:umulation HC
             if t_cuve + 0.2 < (params[0] + t_cons_eau) and t_cuve != 0.0 :
                 # Cde 3 resistances thermo suivant delestage ou non (0 a 6 kW)
-                self.nbr_toactiv = 3
+                self.nbr_toactiv = 1        # Démarre avec une resistance
             elif t_cuve > (params[0] + t_cons_eau) and t_cuve != 0.0 :
                 self.nbr_toactiv = 0   
                 # self.nbr_activ = 0
@@ -458,7 +459,7 @@ class  ges_thermoplongeur(object):
                 if t_cuve + 0.2 < (params[1] + t_cons_eau) and t_cuve != 0 :
                     print('Consigne chauffe cuve', t_cons_eau+params[1])
                     # Cde resistances thermo suivant delestage ou non (0 a 4 kW)
-                    self.nbr_toactiv = 3
+                    self.nbr_toactiv = 1        # Démarre avec 1 résistance
                 elif t_cuve > (params[1] + t_cons_eau) and t_cuve != 0 :
                     # Reset cde resistance thermoplongeurs   
                     self.nbr_toactiv = 0   
@@ -469,7 +470,7 @@ class  ges_thermoplongeur(object):
                 # self.nbr_activ = 0
         # Appel fonction pilotage sortie commande et gestion delestage 
         if DEBUG : 
-            print("Delestage: ", self.nbr_toactiv, ' ', self.nbr_activ)
+            print("Thermoplongeur(actif,Nb R active,courant dispo): ",self.nbr_toactiv, self.nbr_activ, self.Idispo) 
         self.nbr_activ = self._delestage(self.nbr_toactiv, self.nbr_activ,self.Idispo, param_thermop[2])
         # Gestion comptage puissance chauffage
         self.current_theori = self.nbr_activ * (params[3] / params[2])  
