@@ -50,10 +50,10 @@ ON = const(1)              # Pour activer sorties logiques
 OFF = const(0)
 NBTHERMO = const(4) # Nombre de thermometres OneWire
 TYPE_CPT = 'LINKY' 
-TYPE_CONTRAT = 'ZEN_WEEKEND_PLUS'  # Contrat EDF ZEN WEEKEND
-#TYPE_CONTRAT = "HISTORIQUE"         # Contrat classique heure creuse
-jours_hc ={2,5,6}                   # Jours heures creuses 24H
-plage_hc = [2.5, 7.5, 13.5, 16.5]    # Heures creuses autres jours en H et cH
+#TYPE_CONTRAT = 'ZEN_WEEKEND_PLUS'  # Contrat EDF ZEN WEEKEND
+TYPE_CONTRAT = "HISTORIQUE"         # Contrat classique heure creuse
+jours_hc ={2,5,6}                   # Jours heures creuses 24H contrat ZEN PLUS
+plage_hc = [2.5, 7.5, 13.5, 16.5]    # Heures creuses autres jours en H decimales
 
 # Trame d'emission simulation connexion compteur (téléinfo edf)
 # if SIMU == 1:
@@ -92,7 +92,7 @@ param_thermop = [25.0, 6.0, 26.0, 225]
 # (Consigne T amb,(°C), Marche=2 : Circulateur en continu, Marche = 1 : Circulateur controlé par temp ambiante,
 # Marche = 0 : Arret chauffage)
 param_fonct = [19.5, 0]
-
+NbR_THERMO = 2                # Nombre de resistances thermoplongeur connectées
 # -------------------------  Definitions ports entrées et sorties
 p_circu = 'P19'                 # Cde circulateur
 p_v3v_p = 'P20'                 # Cde + vanne 3 voies
@@ -372,7 +372,7 @@ class  ges_thermoplongeur(object):
         self.nbr_activ = nbr_activ
         if nbR > 0 :                                # nbR ; nombre de résistances a activer au demarrage chauffage (1 à 3)
             if Idispo > (230/Rmoy) :                # I theorique par resistance
-                if self.nbr_activ < 3:            # if self.nbr_activ < Nombre de résistances:
+                if self.nbr_activ < NbR_THERMO:            # if self.nbr_activ < Nombre de résistances:
                     self.pin_R[self.nbr_activ].value(ON)  
                     self.nbr_activ += 1
                     #if DEBUG : print('Active une resistance', Idispo, self.nbr_activ)
@@ -475,6 +475,7 @@ class  ges_thermoplongeur(object):
         # Gestion comptage puissance chauffage
         self.current_theori = self.nbr_activ * (params[3] / params[2])  
         if self.iinst > self.current_theori - 2:  # Verifie que les resistances sont effectivement commandés
+        #if self.iinst > 15 :            ##################### PROVISOIRE #####################
             self.puissance = self.current_theori * params[3] # Puissance en Watts
         else :
             self.puissance = 0
