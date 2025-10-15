@@ -29,7 +29,7 @@ import _thread
 import machine
 import onewire
 import pycom
-from machine import RTC, UART, Pin, Timer, WDT
+from machine import RTC, UART, Pin, WDT, PWM
 from network import WLAN
 #from PID import PID
 from umqtt import MQTTClient
@@ -342,7 +342,7 @@ class regul_vanne(object):
 
 #
 # Gestion commande thermoplongeur, delestage electrique, calcul puissance de chauffage en heures creuses et en heures pleines
-#
+# Gestion routeur solaire pour cde 3eme resistance en PWM si producteur
 class  ges_thermoplongeur(object):
     ''' Controle thermoplongeur '''
     def __init__(self, pin_r1,  pin_r2,  pin_r3,  pin_hc):
@@ -353,6 +353,9 @@ class  ges_thermoplongeur(object):
         self.pin_hc = Pin(pin_hc)
         self.pin_hc.init(mode = Pin.OUT)
         self.nbr_activ = 0
+        self.PWM = machine.PWM(0,1) # PWM frequency 1Hz
+        self.PWM_control = self.PWM.channel(0, p_R3, 0.0 ) 
+
 # Recupere compteur dans NVRAM si existe, sinon les creent
         self.kw_hc = 0.0
         self.kw_hp = 0.0
@@ -365,6 +368,7 @@ class  ges_thermoplongeur(object):
         except:
             pycom.nvs_set('cpt_hp',0)    
         self.puissance = 0.0
+        self.PWM_pulse = 0 
         self.t_encours = 'HP..'
 
 # Fonction gestion pilotage résistance thermoplongeur et delestage
@@ -386,7 +390,7 @@ class  ges_thermoplongeur(object):
         else:                                           # On ne chauffe pas
             self.pin_R[0].value(OFF)    
             self.pin_R[1].value(OFF)
-            self.pin_R[2].value(OFF)
+            # self.pin_R[2].value(OFF)          Gérer par fonction routeur solaire photovoltaique
             self.nbr_activ = 0
             return self.nbr_activ
 
@@ -486,8 +490,22 @@ class  ges_thermoplongeur(object):
                 pycom.nvs_set('cpt_hc',int(self.kw_hc))     
             else :
                 self.kw_hp += self.puissance * t_cycl / 3600000  # conversions en w/h
-                pycom.nvs_set('cpt_hp',int(self.kw_hp))                       
-
+                pycom.nvs_set('cpt_hp',int(self.kw_hp))
+#
+# Ici gestion routage solaire pilotage 3eme resistance thermoplongeur (2kw => 8.7 A ) pilotage PWM 
+# echelle PWM 0..100; 100 = 2kW à 8.7A; 0 = OA; step 1% = 0.087A    
+# ----------------------------------------------------------------------------------               
+        self.i_linky = data_edf['IINST']
+        if data_edf['PAPP'] == 0 :
+            # Mode producteur
+            if self.PWM_pulse + self.i_linky/0.087 <= 100 :   
+                self.PWM_pulse += self.i_linky/0.087  
+        else :
+            # Mode consommateur
+            if self.PWM_pulse - self.i_linky/0.087 >= 0 :
+                self.PWM_pulse -= self.i_consomme/0.087
+        self.PWM_control.duty_cycle(self.PWM_pulse/100)     # PWM.duty_cycle(0.00 à 1)
+#--------------------------------------------------------------------------------------
     def get_power(self):
         ''' Docstring here '''
         return self.puissance
