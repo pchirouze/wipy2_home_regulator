@@ -349,14 +349,14 @@ class  ges_thermoplongeur(object):
         self.pin_R = [Pin(pin_r1), Pin(pin_r2), Pin(pin_r3)]
         self.pin_R[0].init(mode=Pin.OUT)
         self.pin_R[1].init(mode=Pin.OUT)
-        self.pin_R[2].init(mode=Pin.OUT)
+        self.pin_R[2].init(mode=Pin.OUT)   # Utiliser maintenant par la traitement routeur solaire
         self.pin_hc = Pin(pin_hc)
         self.pin_hc.init(mode = Pin.OUT)
         self.nbr_activ = 0
         self.PWM = machine.PWM(0,1) # PWM frequency 1Hz
-        self.PWM_control = self.PWM.channel(0, p_R3, 0.0 ) 
+        self.PWM_control = self.PWM.channel(0, self.pin_R[2], 0.0 ) 
 
-# Recupere compteur dans NVRAM si existe, sinon les creent
+# Recupere compteurs dans NVRAM si existe, sinon les creent
         self.kw_hc = 0.0
         self.kw_hp = 0.0
         try:
@@ -371,7 +371,7 @@ class  ges_thermoplongeur(object):
         self.PWM_pulse = 0 
         self.t_encours = 'HP..'
 
-# Fonction gestion pilotage résistance thermoplongeur et delestage
+# Fonction gestion pilotage résistance thermoplongeur et delestage (R1,R2), dorenavant R3 gerer par routeur solaire
     def _delestage(self,nbR, nbr_activ, Idispo, Rmoy):
         self.nbr_activ = nbr_activ
         if nbR > 0 :                                # nbR ; nombre de résistances a activer au demarrage chauffage (1 à 3)
