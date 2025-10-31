@@ -349,12 +349,12 @@ class  ges_thermoplongeur(object):
         self.pin_R = [Pin(pin_r1), Pin(pin_r2), Pin(pin_r3)]
         self.pin_R[0].init(mode=Pin.OUT)
         self.pin_R[1].init(mode=Pin.OUT)
-        self.pin_R[2].init(mode=Pin.OUT)   # Utiliser maintenant par la traitement routeur solaire
+#        self.pin_R[2].init(mode=Pin.OUT)    Utiliser maintenant par la traitement routeur solaire
         self.pin_hc = Pin(pin_hc)
         self.pin_hc.init(mode = Pin.OUT)
         self.nbr_activ = 0
         self.PWM = machine.PWM(0,1) # PWM frequency 1Hz
-        self.PWM_control = self.PWM.channel(0, self.pin_R[2], 0.0 ) 
+        self.PWM_control = self.PWM.channel(0, pin=p_R3, duty_cycle=0.0 ) 
 
 # Recupere compteurs dans NVRAM si existe, sinon les creent
         self.kw_hc = 0.0
@@ -499,11 +499,15 @@ class  ges_thermoplongeur(object):
         if data_edf['PAPP'] == 0 :
             # Mode producteur
             if self.PWM_pulse + self.i_linky/0.087 <= 100 :   
-                self.PWM_pulse += self.i_linky/0.087  
+                self.PWM_pulse += self.i_linky/0.087 
+            else :
+                self.PWM_pulse = 100 
         else :
             # Mode consommateur
             if self.PWM_pulse - self.i_linky/0.087 >= 0 :
-                self.PWM_pulse -= self.i_consomme/0.087
+                self.PWM_pulse -= self.i_linky/0.087
+            else :
+                self.PWM_pulse = 0
         self.PWM_control.duty_cycle(self.PWM_pulse/100)     # PWM.duty_cycle(0.00 à 1)
 #--------------------------------------------------------------------------------------
     def get_power(self):
