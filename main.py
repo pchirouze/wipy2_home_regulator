@@ -52,7 +52,8 @@ NBTHERMO = const(4) # Nombre de thermometres OneWire
 TYPE_CPT = 'LINKY' 
 #TYPE_CONTRAT = 'ZEN_WEEKEND_PLUS'  # Contrat EDF ZEN WEEKEND
 TYPE_CONTRAT = "HISTORIQUE"         # Contrat classique heure creuse
-jours_hc ={2,5,6}                   # Jours heures creuses 24H contrat ZEN PLUS
+#jours_hc ={2,5,6}                   # Jours heures creuses 24H contrat ZEN PLUS
+jours_hc= {}                        # Gestion heures creuses par horaires au lieu de "PTEC" Linky
 plage_hc = [2.5, 7.5, 13.5, 16.5]    # Heures creuses autres jours en H decimales
 
 # Trame d'emission simulation connexion compteur (téléinfo edf)
@@ -368,7 +369,7 @@ class  ges_thermoplongeur(object):
         except:
             pycom.nvs_set('cpt_hp',0)    
         self.puissance = 0.0
-        self.PWM_pulse = 0 
+        self.PWM_pulse = 0.0 
         self.t_encours = 'HP..'
 
 # Fonction gestion pilotage résistance thermoplongeur et delestage (R1,R2), dorenavant R3 gerer par routeur solaire
@@ -395,7 +396,7 @@ class  ges_thermoplongeur(object):
             return self.nbr_activ
 
 # Gestion heures pleines heures creuses avec compteur electroniques ou\
-# compteur Linky protocole historique, contrat historique ou contrat ZEN PLUS
+# compteur Linky protocole historique, contrat HC/HP ou contrat ZEN PLUS
     def _ges_hchp(self,type_cpt, type_contrat, data_edf):
         if type_cpt != 'LINKY' :    # ancien compteur electronique
             try:
@@ -407,8 +408,8 @@ class  ges_thermoplongeur(object):
                 return data_edf['PTEC'] 
             except:
                 return 'HP..'
-        # Contrat non historique 'PTEC' pas utilisable, gestion par calendrier et time 
-        elif type_contrat == 'ZEN_WEEKEND_PLUS':
+        # Contrat non historique 'PTEC' pas utilisable, ou gestion horaire gestion par calendrier et time 
+        elif type_contrat == 'ZEN_WEEKEND_PLUS' or type_contrat == "GESTION_HORAIRE":
             # Heure creuses tout le weekend, le mercredi, et les autres jours 2h30-7h30 13h30 16h30
             date_heure = time.localtime()
             heure_centi = date_heure[3] + (date_heure[4] / 60) # conversion en heure centiheure
@@ -495,8 +496,8 @@ class  ges_thermoplongeur(object):
 # Ici gestion routage solaire pilotage 3eme resistance thermoplongeur (2kw => 8.7 A ) pilotage PWM 
 # echelle PWM 0..100; 100 = 2kW à 8.7A; 0 = OA; step 1% = 0.087A    
 # ----------------------------------------------------------------------------------               
-        self.i_linky = data_edf['IINST']
-        if data_edf['PAPP'] == 0 :
+        self.i_linky = float(data_edf['IINST'])
+        if int(data_edf['PAPP']) == 0 :
             # Mode producteur
             if self.PWM_pulse + self.i_linky/0.087 <= 100 :   
                 self.PWM_pulse += self.i_linky/0.087 
@@ -509,6 +510,8 @@ class  ges_thermoplongeur(object):
             else :
                 self.PWM_pulse = 0
         self.PWM_control.duty_cycle(self.PWM_pulse/100)     # PWM.duty_cycle(0.00 à 1)
+        if DEBUG :
+            print("I : ", self.i_linky, "Papp :  ", data_edf['PAPP'], "PULSE : ", self.PWM_pulse)
 #--------------------------------------------------------------------------------------
     def get_power(self):
         ''' Docstring here '''
