@@ -49,9 +49,10 @@ ETX = b'\x03'
 ON = const(1)              # Pour activer sorties logiques
 OFF = const(0)
 NBTHERMO = const(4) # Nombre de thermometres OneWire
-TYPE_CPT = 'LINKY' 
+TYPE_CPT = 'LINKY'                 # 
+TYPE_CONTRAT = "GESTION_HORAIRE"    # Suite à bug protocole Linky bloquer en contrat base au lieu de HC/HP
 #TYPE_CONTRAT = 'ZEN_WEEKEND_PLUS'  # Contrat EDF ZEN WEEKEND
-TYPE_CONTRAT = "HISTORIQUE"         # Contrat classique heure creuse
+#TYPE_CONTRAT = "HEURES_CREUSES"     # Contrat classique heure creuse
 #jours_hc ={2,5,6}                   # Jours heures creuses 24H contrat ZEN PLUS
 jours_hc= {}                        # Gestion heures creuses par horaires au lieu de "PTEC" Linky
 plage_hc = [2.5, 7.5, 13.5, 16.5]    # Heures creuses autres jours en H decimales
@@ -403,19 +404,19 @@ class  ges_thermoplongeur(object):
                 return data_edf['PTEC'] 
             except:
                 return 'HP..'
-        elif type_contrat == 'HISTORIQUE':     # Compteur Linky
+        elif type_contrat == 'HEURES_CREUSES':     # Compteur Linky contrat HC/HP utilise "PTEC"
             try:
                 return data_edf['PTEC'] 
             except:
                 return 'HP..'
-        # Contrat non historique 'PTEC' pas utilisable, ou gestion horaire gestion par calendrier et time 
+        # Contrat ZEN_PLUS >> 'PTEC' pas utilisable, ou gestion horaire gestion par calendrier et horaires
         elif type_contrat == 'ZEN_WEEKEND_PLUS' or type_contrat == "GESTION_HORAIRE":
             # Heure creuses tout le weekend, le mercredi, et les autres jours 2h30-7h30 13h30 16h30
             date_heure = time.localtime()
             heure_centi = date_heure[3] + (date_heure[4] / 60) # conversion en heure centiheure
             if date_heure[6] in jours_hc:
                 return 'HC..'   # Jour HC sur 24h
-            elif heure_centi >= plage_hc[0] and heure_centi < plage_hc[1]:
+            elif heure_centi >= plage_hc[0] and heure_centi < plage_hc[1]:  #Jours HC horaires
                 return 'HC..'
             elif heure_centi >= plage_hc[2] and heure_centi < plage_hc[3]:
                 return 'HC..'
