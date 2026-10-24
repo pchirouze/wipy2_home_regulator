@@ -5,5 +5,7 @@
     "python.analysis.typeshedPaths": [],
     "python.linting.pylintEnabled": true,
     "githubPullRequests.remotes": [],
-    "python.analysis.extraPaths": []
+    "python.analysis.extraPaths": [],
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python-envs.pythonProjects": []
 }
