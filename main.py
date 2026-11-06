@@ -42,8 +42,7 @@ DEBUG = True
 #SIMU = const(0)
 #SIMU=const(1) 
 #------------------- Watchdog -------------------------------
-#WATCH_DOG = False
-WATCH_DOG = True
+WATCH_DOG = True  
 STX = b'\x02'
 ETX = b'\x03'
 ON = const(1)              # Pour activer sorties logiques
@@ -161,7 +160,7 @@ def edf_recv(serial):
                     lock.release()
                     machine.idle()
         except Exception as e :
-            txtlog = 'Erreur thread EDF: ' + str(time.localtime()) + ' : ' +  e  + '\n'
+            txtlog = 'Erreur thread EDF: ' + '\n' # str(time.localtime()) + ' : ' +  e  + '\n'
             f=open('log.txt','a+') 
             f.write(txtlog)
             f.close()
@@ -497,7 +496,7 @@ class  ges_thermoplongeur(object):
 # Ici gestion routage solaire pilotage 3eme resistance thermoplongeur (2kw => 8.7 A ) pilotage PWM 
 # echelle PWM 0..100; 100 = 2kW à 8.7A; 0 = OA; step 1% = 0.087A    
 # ----------------------------------------------------------------------------------               
-        self.i_linky = float(data_edf['IINST'])
+        self.i_linky = self.iinst #float(data_edf['IINST'])
         if int(data_edf['PAPP']) == 0 :
             # Mode producteur
             if self.PWM_pulse + self.i_linky/0.087 <= 100 :   
@@ -740,8 +739,8 @@ while True:
                     machine.reset() 
             new_lec=False
             lock.release()
-            # Modif suite Linky et Contrat non historique pour protocole MQTT 
-            if TYPE_CPT == "LINKY" and TYPE_CONTRAT == "ZEN_WEEKEND_PLUS":
+            # Modif suite Linky et Contrat non historique pour protocole MQTT et gestion par horaires
+            if TYPE_CPT == "LINKY" and (TYPE_CONTRAT == "ZEN_WEEKEND_PLUS" or TYPE_CONTRAT == "GESTION_HORAIRE") :
                 data_cpt["PTEC"] = reg_c.t_encours
             if DEBUG :        print('Compteur EDF : ',  data_cpt)
 
@@ -771,7 +770,7 @@ while True:
 # Gestion protocole Telnet, FTP, MQTT en WiFI   print (wifi, mqtt_ok)
             if etape_wifi == 0:
                 lswifi=[]
-                wlan=WLAN(mode=WLAN.STA,antenna=WLAN.EXT_ANT)
+                wlan=WLAN(mode=WLAN.STA,antenna=WLAN.EXT_ANT)   # ANTENNE INTEGRE
                 try:
                     lswifi=wlan.scan()
                 except:
